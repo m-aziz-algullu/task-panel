@@ -1,4 +1,5 @@
-import { date, doublePrecision, integer, pgTable, primaryKey, serial, text, timestamp } from "drizzle-orm/pg-core";
+import type { JSONContent } from "@tiptap/core";
+import { date, doublePrecision, integer, jsonb, pgTable, primaryKey, serial, text, timestamp } from "drizzle-orm/pg-core";
 
 // Mirrors the SQL in ./migrations.ts, which is what actually creates the tables.
 
@@ -12,7 +13,9 @@ export const tags = pgTable("tags", {
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
+  /** Plain text of the description, derived on save; used for card previews and search. */
   description: text("description").notNull().default(""),
+  descriptionDoc: jsonb("description_doc").$type<JSONContent>(),
   status: text("status").notNull(),
   storyPoints: integer("story_points"),
   day: date("day", { mode: "string" }).notNull(),

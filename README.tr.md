@@ -17,6 +17,7 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 
 - **Pano:** dört sabit kolon (Backlog, In Progress, Pending, Done). Kolonlar arasında ve kolon içinde sürükle-bırak; fare, dokunmatik ve klavyeyle çalışır.
 - **Task:** başlık, açıklama, gün, story point (1, 2, 3, 5, 8, 13, 21) ve etiketler. Kartta etiketler, gün, `#id` ve puan görünür. Günü geçmiş açık taskların günü kırmızı yazılır.
+- **Zengin metin açıklama** (Jira gibi): başlıklar, kalın/italik/altı çizili/üstü çizili, yazı rengi ve vurgu, madde ve numaralı listeler, yapılacaklar listesi, alıntı, kod, link, tablo ve ayırıcı. Markdown kısayolları (`# `, `- `, `[ ] `, `**kalın**`…), `/` ile hızlı ekleme menüsü, link için `Ctrl+K`, açmak için `Ctrl`+tık.
 - **Etiketler:** isim ve istediğin renk. Panoyu etikete göre filtreleyebilir ya da metinle arayabilirsin.
 - **Gün sonu:** Done'a taşınan tasklar gece yarısına kadar (`APP_TIMEZONE`'a göre) panoda kalır, sonra **Tamamlananlar** sayfasına geçer. Orada gün gün ve panodakiyle aynı kart boyutunda listelenir. Açık sekme gece yarısı kendini yeniler.
 - **Türkçe ve İngilizce** arayüz. Tarayıcı diline göre seçilir, header'dan değiştirilebilir.

@@ -34,7 +34,7 @@ export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
         if (event.target === ref.current) onClose();
       }}
       className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-surface p-0 text-fg shadow-2xl ${
-        size === "lg" ? "max-w-3xl" : "max-w-lg"
+        size === "lg" ? "max-w-5xl" : "max-w-lg"
       }`}
     >
       <div className="flex max-h-[calc(100dvh-2rem)] flex-col">

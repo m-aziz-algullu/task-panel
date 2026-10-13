@@ -1,5 +1,7 @@
 // Client-safe types and constants shared by the server and the browser.
 
+import type { JSONContent } from "@tiptap/core";
+
 export const STATUSES = ["backlog", "in_progress", "pending", "done"] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -21,7 +23,10 @@ export type Tag = {
 export type Task = {
   id: number;
   title: string;
+  /** Plain text of the description (card preview, search). */
   description: string;
+  /** Rich text description as editor JSON; null for none or for tasks saved before the editor. */
+  descriptionDoc: JSONContent | null;
   status: Status;
   storyPoints: number | null;
   /** The day the task belongs to, as YYYY-MM-DD. */
@@ -36,7 +41,8 @@ export type Task = {
 
 export type TaskInput = {
   title: string;
-  description: string;
+  /** Editor JSON; the server validates it and derives the plain text. */
+  descriptionDoc: JSONContent | null;
   status: Status;
   storyPoints: number | null;
   day: string;

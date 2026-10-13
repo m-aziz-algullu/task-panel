@@ -7,6 +7,7 @@ import { isHexColor } from "@/lib/colors";
 import { getDb, schema, type Db } from "@/lib/db";
 import { loadTask } from "@/lib/data";
 import { isDayKey } from "@/lib/dates";
+import { InvalidDocumentError, normalizeDocument } from "@/lib/rich-text/document";
 import { requireSession } from "@/lib/session";
 import { STATUSES, type Status, type Tag, type TagInput, type Task, type TaskInput } from "@/lib/types";
 import type { MessageKey } from "@/i18n/translate";
@@ -22,7 +23,7 @@ const id = z.number().int().positive();
 
 const taskInput = z.object({
   title: z.string().trim().min(1, msg("errors.titleRequired")).max(300, msg("errors.titleTooLong")),
-  description: z.string().max(20_000, msg("errors.descriptionTooLong")),
+  descriptionDoc: z.unknown(),
   status: z.enum(STATUSES),
   storyPoints: z.number().int().min(0).max(1000).nullable(),
   day: z.string().refine(isDayKey, msg("errors.dayInvalid")),
@@ -39,6 +40,10 @@ function fail(error: unknown): { ok: false; error: MessageKey } {
     // Custom messages above are keys; anything else (type errors etc.) is a generic "invalid".
     const message = error.issues[0]?.message ?? "";
     return { ok: false, error: message.startsWith("errors.") ? (message as MessageKey) : "errors.invalid" };
+  }
+  if (error instanceof InvalidDocumentError) {
+    console.warn("[task] rejected description:", error.message);
+    return { ok: false, error: "errors.descriptionInvalid" };
   }
   console.error(error);
   return { ok: false, error: "errors.generic" };
@@ -73,13 +78,15 @@ export async function createTask(raw: TaskInput): Promise<ActionResult<Task>> {
   await requireSession();
   try {
     const input = taskInput.parse(raw);
+    const description = normalizeDocument(input.descriptionDoc);
     const db = await getDb();
     const taskId = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(tasks)
         .values({
           title: input.title,
-          description: input.description,
+          description: description.text,
+          descriptionDoc: description.doc,
           status: input.status,
           storyPoints: input.storyPoints,
           day: input.day,
@@ -103,6 +110,7 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
   try {
     const taskId = id.parse(rawId);
     const input = taskInput.parse(raw);
+    const description = normalizeDocument(input.descriptionDoc);
     const db = await getDb();
     const found = await db.transaction(async (tx) => {
       const [current] = await tx.select().from(tasks).where(eq(tasks.id, taskId));
@@ -112,7 +120,8 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
         .update(tasks)
         .set({
           title: input.title,
-          description: input.description,
+          description: description.text,
+          descriptionDoc: description.doc,
           status: input.status,
           storyPoints: input.storyPoints,
           day: input.day,

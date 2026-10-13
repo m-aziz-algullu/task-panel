@@ -32,6 +32,7 @@ export function toTask(row: TaskRow, tagIds: number[], timeZone: string): Task {
     id: row.id,
     title: row.title,
     description: row.description,
+    descriptionDoc: row.descriptionDoc ?? null,
     status: row.status as Status,
     storyPoints: row.storyPoints,
     day: isDayKey(row.day) ? row.day : String(row.day).slice(0, 10),

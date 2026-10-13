@@ -77,4 +77,11 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `CREATE INDEX auth_attempts_at_idx ON auth_attempts (at)`,
     ],
   },
+  {
+    version: 5,
+    statements: [
+      // Rich text description (editor JSON). tasks.description keeps its plain text for previews and search.
+      `ALTER TABLE tasks ADD COLUMN description_doc jsonb`,
+    ],
+  },
 ];

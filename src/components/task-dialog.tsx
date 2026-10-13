@@ -7,8 +7,10 @@ import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
 import { addDays, formatDateTime, formatDay } from "@/lib/dates";
 import { STATUSES, STATUS_META, STORY_POINTS, type Clock, type Status, type Tag, type Task, type TaskInput } from "@/lib/types";
+import { plainTextToDocument } from "@/lib/rich-text/document";
 import { ColorPicker, randomPresetColor } from "./color-picker";
 import { Modal } from "./modal";
+import { RichTextEditor } from "./rich-text/editor";
 import { TagPill } from "./tag-pill";
 
 type TaskDialogProps = {
@@ -88,7 +90,8 @@ function InlineTagCreator({ onCreated }: { onCreated: (tag: Tag) => void }) {
 export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClose }: TaskDialogProps) {
   const [form, setForm] = useState<TaskInput>(() => ({
     title: task?.title ?? "",
-    description: task?.description ?? "",
+    // Tasks saved before the editor existed only have plain text.
+    descriptionDoc: task?.descriptionDoc ?? plainTextToDocument(task?.description ?? ""),
     status: task?.status ?? defaultStatus,
     storyPoints: task?.storyPoints ?? null,
     day: task?.day ?? clock.today,
@@ -151,11 +154,11 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClo
               }}
             />
             <Field label={t("task.description")}>
-              <textarea
-                className="input min-h-48 resize-y leading-relaxed"
+              <RichTextEditor
+                initialContent={form.descriptionDoc}
+                onChange={(doc) => set("descriptionDoc", doc)}
                 placeholder={t("task.descriptionPlaceholder")}
-                value={form.description}
-                onChange={(event) => set("description", event.target.value)}
+                label={t("task.description")}
               />
             </Field>
             {task && (
