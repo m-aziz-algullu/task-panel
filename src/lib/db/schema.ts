@@ -57,3 +57,9 @@ export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+export const authAttempts = pgTable("auth_attempts", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull(),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});

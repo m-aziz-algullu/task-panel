@@ -6,6 +6,8 @@ import { z } from "zod";
 import type { MessageKey } from "@/i18n/translate";
 import { MIN_PASSWORD_LENGTH, hashPassword, normalizeEmail, timingDummyHash, verifyPassword } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
+import { clearAttempts, clientIp, recordAttempt } from "@/lib/rate-limit";
+import { setupLimits, signInLimits } from "@/lib/rate-limit-rules";
 import { endSession, hasUsers, startSession } from "@/lib/session";
 import { clearSetupCode, getOrCreateSetupCode } from "@/lib/setup";
 import { setupCodeMatches } from "@/lib/setup-code";
@@ -13,7 +15,14 @@ import { setupCodeMatches } from "@/lib/setup-code";
 const { users } = schema;
 
 /** `error` is a message key; the form translates it. */
-export type AuthFormState = { error: MessageKey | null; name?: string; email?: string; setupCode?: string };
+export type AuthFormState = {
+  error: MessageKey | null;
+  /** With errors.tooManyAttempts. */
+  retryMinutes?: number;
+  name?: string;
+  email?: string;
+  setupCode?: string;
+};
 
 const msg = (key: MessageKey) => key;
 
@@ -31,7 +40,7 @@ const registerInput = z
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "");
 
-/** Slows down guessing without needing any stored state. */
+/** Small delay on each wrong guess; the hard cap is recordAttempt() in lib/rate-limit.ts. */
 const penalty = () => new Promise((resolve) => setTimeout(resolve, 600));
 
 /**
@@ -53,8 +62,12 @@ export async function register(_prev: AuthFormState, formData: FormData): Promis
     return { error, name, email, setupCode };
   }
 
-  const passwordHash = await hashPassword(parsed.data.password);
   const db = await getDb();
+  const limits = setupLimits(await clientIp());
+  const retryMinutes = await recordAttempt(db, limits);
+  if (retryMinutes !== null) return { error: "errors.tooManyAttempts", retryMinutes, name, email };
+
+  const passwordHash = await hashPassword(parsed.data.password);
   const outcome = await db.transaction(async (tx) => {
     // Two simultaneous sign-ups must not both see an empty users table.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(727275)`);
@@ -73,6 +86,7 @@ export async function register(_prev: AuthFormState, formData: FormData): Promis
     return { error: "errors.setupCodeInvalid", name, email };
   }
 
+  await clearAttempts(db, limits);
   await startSession(db, outcome);
   return localizedRedirect("/");
 }
@@ -81,6 +95,11 @@ export async function login(_prev: AuthFormState, formData: FormData): Promise<A
   const email = normalizeEmail(field(formData, "email"));
   const password = field(formData, "password");
   const db = await getDb();
+
+  // Counted before the password is checked, so blocked guesses learn nothing.
+  const limits = signInLimits(await clientIp(), email);
+  const retryMinutes = await recordAttempt(db, limits);
+  if (retryMinutes !== null) return { error: "errors.tooManyAttempts", retryMinutes, email };
 
   const [user] = await db
     .select({ id: users.id, passwordHash: users.passwordHash })
@@ -94,6 +113,7 @@ export async function login(_prev: AuthFormState, formData: FormData): Promise<A
     return { error: "errors.loginFailed", email };
   }
 
+  await clearAttempts(db, limits);
   await startSession(db, user.id);
   return localizedRedirect("/");
 }

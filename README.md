@@ -42,6 +42,8 @@ There's exactly one account. On a fresh install the app has no users and:
 
 Only someone who can read the server logs can create the account, so a stranger who finds your URL before you do can't take it over. To pick the code yourself, set `SETUP_TOKEN`.
 
+**Brute-force protection:** sign-in allows 10 failed attempts per IP and 50 per account within 15 minutes, then refuses further attempts (without checking the password) until the window passes. Setup codes are limited per IP the same way. Responses also send `Strict-Transport-Security`, so browsers stick to HTTPS once they've seen your domain over it.
+
 <img src="docs/screenshots/setup.png" alt="Setup page" width="420">
 
 ## Quick start (local development)
@@ -117,6 +119,7 @@ src/lib/db/                    Connection, schema, migrations
 src/lib/session.ts             Session checks against the database
 src/lib/auth.ts                Password hashing, session tokens
 src/lib/setup*.ts              One-time setup code
+src/lib/rate-limit*.ts         Sign-in attempt limits
 src/lib/dates.ts               Time-zone-aware day math
 src/components/                UI
 ```

@@ -64,4 +64,17 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       )`,
     ],
   },
+  {
+    version: 4,
+    statements: [
+      // Failed (and in-flight) sign-in attempts per IP / account, for rate limiting.
+      `CREATE TABLE auth_attempts (
+        id serial PRIMARY KEY,
+        key text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now()
+      )`,
+      `CREATE INDEX auth_attempts_key_at_idx ON auth_attempts (key, at)`,
+      `CREATE INDEX auth_attempts_at_idx ON auth_attempts (at)`,
+    ],
+  },
 ];

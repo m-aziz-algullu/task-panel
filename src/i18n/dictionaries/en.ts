@@ -131,6 +131,10 @@ const en = {
     passwordTooLong: "Password can be at most 200 characters.",
     passwordMismatch: "Passwords don't match.",
     loginFailed: "Wrong email or password.",
+    tooManyAttempts: {
+      one: "Too many failed attempts. Try again in {count} minute.",
+      other: "Too many failed attempts. Try again in {count} minutes.",
+    },
     setupCodeInvalid: "Wrong setup code. Use the code from the server logs.",
   },
 } satisfies Dictionary;

@@ -26,7 +26,7 @@ function FormError({ state }: { state: AuthFormState }) {
   if (!state.error) return null;
   return (
     <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-      {t(state.error, { min: MIN_PASSWORD_LENGTH })}
+      {t(state.error, { min: MIN_PASSWORD_LENGTH, count: state.retryMinutes ?? 0 })}
     </p>
   );
 }

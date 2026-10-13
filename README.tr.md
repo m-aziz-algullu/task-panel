@@ -42,6 +42,8 @@ Sadece bir hesap var. Yeni kurulumda hiç kullanıcı yokken:
 
 Hesabı sadece sunucu loglarını okuyabilen kişi oluşturabilir. Yani adresini senden önce bulan biri hesabı ele geçiremez. Kodu kendin belirlemek istersen `SETUP_TOKEN` ortam değişkenini ver.
 
+**Kaba kuvvet koruması:** girişte 15 dakika içinde IP başına 10, hesap başına 50 başarısız denemeye izin verilir. Sonrasında süre dolana kadar yeni denemeler şifre kontrol edilmeden reddedilir. Kurulum kodu denemeleri de IP başına aynı şekilde sınırlıdır. Yanıtlar `Strict-Transport-Security` başlığı da gönderir; tarayıcı domain'ini bir kez HTTPS ile gördükten sonra hep HTTPS kullanır.
+
 <img src="docs/screenshots/setup.png" alt="Kurulum sayfası" width="420">
 
 ## Hızlı başlangıç (lokal geliştirme)
@@ -117,6 +119,7 @@ src/lib/db/                    Bağlantı, şema, migration'lar
 src/lib/session.ts             Oturum doğrulama (veritabanından)
 src/lib/auth.ts                Şifre hash'leme, oturum token'ları
 src/lib/setup*.ts              Tek seferlik kurulum kodu
+src/lib/rate-limit*.ts         Giriş denemesi sınırları
 src/lib/dates.ts               Saat dilimine göre gün hesapları
 src/components/                Arayüz
 ```

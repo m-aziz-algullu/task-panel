@@ -131,6 +131,10 @@ const tr = {
     passwordTooLong: "Şifre en fazla 200 karakter olabilir.",
     passwordMismatch: "Şifreler eşleşmiyor.",
     loginFailed: "E-posta veya şifre hatalı.",
+    tooManyAttempts: {
+      one: "Çok fazla başarısız deneme. {count} dakika sonra tekrar dene.",
+      other: "Çok fazla başarısız deneme. {count} dakika sonra tekrar dene.",
+    },
     setupCodeInvalid: "Kurulum kodu hatalı. Sunucu loglarındaki kodu gir.",
   },
 };
