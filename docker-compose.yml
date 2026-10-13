@@ -1,0 +1,34 @@
+# Self-hosting without Dokploy: `docker compose up -d`, then open http://localhost:3000
+# and enter the setup code printed by `docker compose logs app`.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://taskpanel:${POSTGRES_PASSWORD:-change-me}@db:5432/taskpanel
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Istanbul}
+      # Optional: your own setup code instead of the generated one.
+      # SETUP_TOKEN: ${SETUP_TOKEN}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taskpanel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: taskpanel
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskpanel -d taskpanel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db-data:
