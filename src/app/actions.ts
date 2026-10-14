@@ -5,8 +5,8 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { isHexColor } from "@/lib/colors";
 import { getDb, schema, type Db } from "@/lib/db";
-import { loadTask } from "@/lib/data";
-import { isDayKey } from "@/lib/dates";
+import { getClock, loadTask } from "@/lib/data";
+import { addDays, dayKey, isDayKey, startOfDay } from "@/lib/dates";
 import { InvalidDocumentError, normalizeDocument } from "@/lib/rich-text/document";
 import { requireSession } from "@/lib/session";
 import { STATUSES, type Status, type Tag, type TagInput, type Task, type TaskInput } from "@/lib/types";
@@ -27,6 +27,10 @@ const taskInput = z.object({
   status: z.enum(STATUSES),
   storyPoints: z.number().int().min(0).max(1000).nullable(),
   day: z.string().refine(isDayKey, msg("errors.dayInvalid")),
+  completedDay: z
+    .string()
+    .refine((value) => isDayKey(value) && value <= getClock().today, msg("errors.dayInvalid"))
+    .optional(),
   tagIds: z.array(id).max(50),
 });
 
@@ -67,11 +71,25 @@ async function setTags(db: Db, taskId: number, tagIds: number[]) {
   await db.insert(taskTags).values(existing.map((t) => ({ taskId, tagId: t.id })));
 }
 
-/** completed_at follows the status: stamped on entering Done, cleared on leaving it. */
-function completedAtFor(next: Status, previous: { status: string; completedAt: Date | null } | null) {
+/**
+ * completed_at follows the status: stamped on entering Done, cleared on leaving it.
+ * `completedDay` records the completion on an earlier day (e.g. yesterday's leftovers
+ * finished this morning) by stamping the last moment of that day.
+ */
+function completedAtFor(
+  next: Status,
+  previous: { status: string; completedAt: Date | null } | null,
+  completedDay?: string,
+) {
   if (next !== "done") return null;
-  if (previous?.status === "done" && previous.completedAt) return previous.completedAt;
-  return new Date();
+  const kept = previous?.status === "done" ? previous.completedAt : null;
+  if (completedDay) {
+    const { today, timeZone } = getClock();
+    if (kept && dayKey(kept, timeZone) === completedDay) return kept;
+    if (completedDay === today) return new Date();
+    return new Date(startOfDay(addDays(completedDay, 1), timeZone).getTime() - 1);
+  }
+  return kept ?? new Date();
 }
 
 export async function createTask(raw: TaskInput): Promise<ActionResult<Task>> {
@@ -91,7 +109,7 @@ export async function createTask(raw: TaskInput): Promise<ActionResult<Task>> {
           storyPoints: input.storyPoints,
           day: input.day,
           position: await topPosition(tx, input.status),
-          completedAt: completedAtFor(input.status, null),
+          completedAt: completedAtFor(input.status, null, input.completedDay),
         })
         .returning({ id: tasks.id });
       await setTags(tx, row.id, input.tagIds);
@@ -125,7 +143,7 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
           status: input.status,
           storyPoints: input.storyPoints,
           day: input.day,
-          completedAt: completedAtFor(input.status, current),
+          completedAt: completedAtFor(input.status, current, input.completedDay),
           updatedAt: new Date(),
           ...(statusChanged ? { position: await topPosition(tx, input.status) } : {}),
         })
@@ -143,19 +161,39 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
 }
 
 /** Moves a task to `status` and stores that column's order as given. */
-export async function moveTask(rawId: number, rawStatus: Status, rawOrder: number[]): Promise<ActionResult> {
+const moveResolution = z
+  .object({
+    /** Re-plan the task onto this day. */
+    day: taskInput.shape.day.optional(),
+    /** Record the completion on this (past or current) day. */
+    completedDay: taskInput.shape.completedDay,
+  })
+  .optional();
+
+export async function moveTask(
+  rawId: number,
+  rawStatus: Status,
+  rawOrder: number[],
+  rawResolution?: { day?: string; completedDay?: string },
+): Promise<ActionResult> {
   await requireSession();
   try {
     const taskId = id.parse(rawId);
     const status = z.enum(STATUSES).parse(rawStatus);
     const order = z.array(id).max(5000).parse(rawOrder);
+    const resolution = moveResolution.parse(rawResolution);
     const db = await getDb();
     await db.transaction(async (tx) => {
       const [current] = await tx.select().from(tasks).where(eq(tasks.id, taskId));
       if (!current) return;
       await tx
         .update(tasks)
-        .set({ status, completedAt: completedAtFor(status, current), updatedAt: new Date() })
+        .set({
+          status,
+          completedAt: completedAtFor(status, current, resolution?.completedDay),
+          ...(resolution?.day ? { day: resolution.day } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(tasks.id, taskId));
       for (const [index, orderedId] of order.entries()) {
         await tx

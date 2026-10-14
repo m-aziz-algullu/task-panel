@@ -46,6 +46,8 @@ export type TaskInput = {
   status: Status;
   storyPoints: number | null;
   day: string;
+  /** Day (YYYY-MM-DD) to record the completion on; only used while the status is done. */
+  completedDay?: string;
   tagIds: number[];
 };
 

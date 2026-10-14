@@ -95,6 +95,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClo
     status: task?.status ?? defaultStatus,
     storyPoints: task?.storyPoints ?? null,
     day: task?.day ?? clock.today,
+    completedDay: task?.completedDay ?? clock.today,
     tagIds: task?.tagIds ?? [],
   }));
   const { t, intlLocale } = useI18n();
@@ -214,6 +215,38 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClo
                 ))}
               </div>
             </Field>
+
+            {form.status === "done" && (
+              <Field
+                label={`${t("task.completedDay")} · ${formatDay(form.completedDay ?? clock.today, clock.today, dayLabels, intlLocale)}`}
+              >
+                <input
+                  type="date"
+                  className="input"
+                  value={form.completedDay ?? clock.today}
+                  max={clock.today}
+                  required
+                  onChange={(event) =>
+                    event.target.value && event.target.value <= clock.today && set("completedDay", event.target.value)
+                  }
+                />
+                <div className="flex gap-1">
+                  {[
+                    { label: t("days.today"), value: clock.today },
+                    { label: t("days.yesterday"), value: addDays(clock.today, -1) },
+                  ].map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      className={`btn px-2 py-1 text-xs ${(form.completedDay ?? clock.today) === option.value ? "bg-surface-2 text-fg" : "btn-ghost text-muted"}`}
+                      onClick={() => set("completedDay", option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            )}
 
             <Field label={t("task.storyPoints")}>
               <div className="flex flex-wrap gap-1">
