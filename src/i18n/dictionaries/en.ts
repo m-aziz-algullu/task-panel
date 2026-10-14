@@ -50,6 +50,12 @@ const en = {
     day: "Task day",
     storyPoints: "Story points",
   },
+  doneDay: {
+    title: "This task isn't for today",
+    body: "“{title}” is planned for {day}. What should happen when it moves to Done?",
+    recordOnDay: "Record as completed on {day}",
+    moveToToday: "Move to today and complete it today",
+  },
   task: {
     new: "New task",
     heading: "Task #{id}",
@@ -60,6 +66,7 @@ const en = {
     completed: "Completed",
     status: "Status",
     day: "Day",
+    completedDay: "Completed on",
     storyPoints: "Story Points",
     removePoints: "Clear points",
     tags: "Tags",

@@ -27,13 +27,16 @@ import type { MessageKey } from "@/i18n/translate";
 import { placeInColumn } from "@/lib/ordering";
 import { STATUSES, STATUS_META, type Clock, type Status, type Tag, type Task } from "@/lib/types";
 import { EMPTY_FILTERS, FilterBar, isFiltering, matchesFilters, shortcutBlocked, type Filters } from "./filters";
+import { DoneDayPrompt, type DoneResolution } from "./done-day-prompt";
 import { TagManager } from "./tag-manager";
 import { CARD_WIDTH, COLUMN_WIDTH } from "./card-size";
 import { TaskCard } from "./task-card";
 import { TaskDialog } from "./task-dialog";
 import { useDayRollover } from "./use-day-rollover";
 
-type DialogState = { kind: "create"; status: Status } | { kind: "edit"; taskId: number } | { kind: "tags" } | null;
+type PendingMove = { movedId: number; from: Status; to: Status; order: number[] };
+
+type DialogState ={ kind: "create"; status: Status } | { kind: "edit"; taskId: number } | { kind: "tags" } | null;
 
 const COLUMN_PREFIX = "col:";
 const columnId = (status: Status) => `${COLUMN_PREFIX}${status}`;
@@ -146,6 +149,7 @@ export function Board({ tasks: serverTasks, tags, clock }: { tasks: Task[]; tags
   const [dialog, setDialog] = useState<DialogState>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [overStatus, setOverStatus] = useState<Status | null>(null);
+  const [pendingDone, setPendingDone] = useState<PendingMove | null>(null);
   const { t, intlLocale } = useI18n();
   const [error, setError] = useState<MessageKey | null>(null);
   const [, startTransition] = useTransition();
@@ -217,6 +221,35 @@ export function Board({ tasks: serverTasks, tags, clock }: { tasks: Task[]; tags
     setDialog({ kind: "edit", taskId: task.id });
   };
 
+  const commitMove = ({ movedId, from, to, order }: PendingMove, resolution: DoneResolution) => {
+    const completedDay = resolution.completedDay ?? clock.today;
+    // Late completions are stamped at the end of their day; today's get "now".
+    const completedAt = completedDay === clock.today ? new Date().toISOString() : `${completedDay}T23:59:59.999Z`;
+    setTasks((current) =>
+      current.map((task) => {
+        if (task.id === movedId) {
+          const stillDone = from === "done" && to === "done";
+          return {
+            ...task,
+            status: to,
+            day: resolution.day ?? task.day,
+            position: order.indexOf(movedId),
+            completedAt: to === "done" ? (stillDone ? task.completedAt : completedAt) : null,
+            completedDay: to === "done" ? (stillDone ? task.completedDay : completedDay) : null,
+          };
+        }
+        return task.status === to && order.includes(task.id) ? { ...task, position: order.indexOf(task.id) } : task;
+      }),
+    );
+    startTransition(async () => {
+      const result = await moveTask(movedId, to, order, resolution);
+      if (!result.ok) {
+        setError(result.error);
+        setTasks(serverTasks);
+      }
+    });
+  };
+
   const onDragOver = ({ over }: DragOverEvent) => setOverStatus(over ? statusOf(over.id) : null);
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -249,29 +282,14 @@ export function Board({ tasks: serverTasks, tags, clock }: { tasks: Task[]; tags
       newVisible,
       movedId,
     );
-    const now = new Date().toISOString();
-    setTasks((current) =>
-      current.map((task) => {
-        if (task.id === movedId) {
-          const stillDone = from === "done" && to === "done";
-          return {
-            ...task,
-            status: to,
-            position: order.indexOf(movedId),
-            completedAt: to === "done" ? (stillDone ? task.completedAt : now) : null,
-            completedDay: to === "done" ? (stillDone ? task.completedDay : clock.today) : null,
-          };
-        }
-        return task.status === to && order.includes(task.id) ? { ...task, position: order.indexOf(task.id) } : task;
-      }),
-    );
-    startTransition(async () => {
-      const result = await moveTask(movedId, to, order);
-      if (!result.ok) {
-        setError(result.error);
-        setTasks(serverTasks);
-      }
-    });
+    const moved = tasks.find((task) => task.id === movedId);
+    const move = { movedId, from, to, order };
+    // A task planned for another day needs a decision before it can land in Done.
+    if (moved && to === "done" && from !== "done" && moved.day !== clock.today) {
+      setPendingDone(move);
+      return;
+    }
+    commitMove(move, {});
   };
 
   const activeTask = activeId == null ? null : tasks.find((task) => task.id === activeId);
@@ -358,6 +376,18 @@ export function Board({ tasks: serverTasks, tags, clock }: { tasks: Task[]; tags
         <TaskDialog key={editingTask.id} task={editingTask} tags={tags} clock={clock} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "tags" && <TagManager tags={tags} onClose={() => setDialog(null)} />}
+      {pendingDone && (
+        <DoneDayPrompt
+          task={tasks.find((task) => task.id === pendingDone.movedId)!}
+          today={clock.today}
+          onCancel={() => setPendingDone(null)}
+          onResolve={(resolution) => {
+            const move = pendingDone;
+            setPendingDone(null);
+            commitMove(move, resolution);
+          }}
+        />
+      )}
     </div>
   );
 }

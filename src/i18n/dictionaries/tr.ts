@@ -50,6 +50,12 @@ const tr = {
     day: "Taskın günü",
     storyPoints: "Story point",
   },
+  doneDay: {
+    title: "Bu task bugüne ait değil",
+    body: "“{title}” {day} gününe planlanmış. Done'a alırken ne yapalım?",
+    recordOnDay: "{day} gününde tamamlandı olarak yaz",
+    moveToToday: "Bugüne taşı ve bugün tamamla",
+  },
   task: {
     new: "Yeni task",
     heading: "Task #{id}",
@@ -60,6 +66,7 @@ const tr = {
     completed: "Tamamlandı",
     status: "Durum",
     day: "Gün",
+    completedDay: "Tamamlanma günü",
     storyPoints: "Story Point",
     removePoints: "Puanı kaldır",
     tags: "Etiketler",
