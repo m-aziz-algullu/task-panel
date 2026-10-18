@@ -39,29 +39,41 @@ export function ensureSecrets(secretsDir, env = process.env) {
  * listens where the app expects it, on loopback only; every other key belongs to
  * the user (and the agent settings page) and is never touched here. The token
  * comes from OPENCLAW_GATEWAY_TOKEN, so it never lands in openclaw.json.
+ *
+ * In the container the agent's Chromium keeps shared memory out of Docker's
+ * 64 MB /dev/shm and, unless `browserSandbox` is set, runs without its own
+ * sandbox: that needs privileges Docker doesn't grant by default, and Chromium
+ * aborts at launch without them. The container, the unprivileged `node` user
+ * and a separate browser profile still fence it in.
  */
-export function managedConfig({ port = GATEWAY_PORT } = {}) {
+export function managedConfig({ port = GATEWAY_PORT, container = false, browserSandbox = false } = {}) {
   return [
     { path: "gateway.mode", value: "local" },
     { path: "gateway.bind", value: "loopback" },
     { path: "gateway.port", value: port },
     { path: "gateway.auth.mode", value: "token" },
+    ...(container
+      ? [
+          { path: "browser.noSandbox", value: !browserSandbox },
+          { path: "browser.extraArgs", value: ["--disable-dev-shm-usage"] },
+        ]
+      : []),
   ];
 }
 
 /** Config keys Task Panel manages; the settings page shows them read-only. */
-export const MANAGED_CONFIG_PATHS = managedConfig().map((entry) => entry.path);
+export const MANAGED_CONFIG_PATHS = managedConfig({ container: true }).map((entry) => entry.path);
 
 /**
  * Applies `managedConfig` with OpenClaw's own CLI, so validation and file format
  * stay OpenClaw's business. `command` is the argv prefix that runs the CLI
  * (node plus openclaw.mjs; no shell involved).
  */
-export function applyManagedConfig({ command, port, env, uid, gid, cwd }) {
+export function applyManagedConfig({ command, port, container, browserSandbox, env, uid, gid, cwd }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "taskpanel-openclaw-"));
   const batchFile = path.join(dir, "config.batch.json");
   try {
-    fs.writeFileSync(batchFile, JSON.stringify(managedConfig({ port })), { mode: 0o600 });
+    fs.writeFileSync(batchFile, JSON.stringify(managedConfig({ port, container, browserSandbox })), { mode: 0o600 });
     if (uid !== undefined) {
       fs.chownSync(dir, uid, gid);
       fs.chownSync(batchFile, uid, gid);

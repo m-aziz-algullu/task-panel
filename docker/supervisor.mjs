@@ -127,6 +127,9 @@ if (agentEnabled) {
     applyManagedConfig({
       command: [process.execPath, path.join(OPENCLAW_ROOT, "openclaw.mjs")],
       port: GATEWAY_PORT,
+      container: true,
+      // For containers given the privileges Chromium's sandbox needs (SYS_ADMIN or a seccomp profile).
+      browserSandbox: /^(1|true|on|yes)$/i.test(process.env.TASKPANEL_BROWSER_SANDBOX ?? ""),
       env,
       uid: node.uid,
       gid: node.gid,

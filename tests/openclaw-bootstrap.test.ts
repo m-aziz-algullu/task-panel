@@ -40,6 +40,15 @@ describe("managedConfig", () => {
       "gateway.auth.mode": "token",
     });
   });
+
+  it("lets the browser start inside the container", () => {
+    const config = Object.fromEntries(managedConfig({ container: true }).map((entry) => [entry.path, entry.value]));
+    expect(config["browser.noSandbox"]).toBe(true);
+    expect(config["browser.extraArgs"]).toEqual(["--disable-dev-shm-usage"]);
+    expect(config["gateway.bind"]).toBe("loopback");
+    const sandboxed = managedConfig({ container: true, browserSandbox: true });
+    expect(sandboxed).toContainEqual({ path: "browser.noSandbox", value: false });
+  });
 });
 
 describe("process environments", () => {
