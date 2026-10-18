@@ -7,12 +7,14 @@
   --bg: #f4f5f7;
   --surface: #ffffff;
   --surface-2: #ebedf0;
-  --border: #dcdfe4;
+  --border: #c3c8d0;
   --fg: #172b4d;
   --muted: #5e6c84;
   --accent: #2563eb;
   --accent-fg: #ffffff;
   --overdue: #dc2626;
+  /* Everything the agent is doing: a colour of its own, apart from the accent. */
+  --agent: #7c3aed;
   color-scheme: light;
 }
 
@@ -20,12 +22,13 @@
   --bg: #0f1115;
   --surface: #1a1d23;
   --surface-2: #14161b;
-  --border: #2c313a;
+  --border: #3d434e;
   --fg: #e6e8eb;
   --muted: #9aa3af;
   --accent: #3b82f6;
   --accent-fg: #ffffff;
   --overdue: #f87171;
+  --agent: #a78bfa;
   color-scheme: dark;
 }
 
@@ -39,6 +42,7 @@
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
   --color-overdue: var(--overdue);
+  --color-agent: var(--agent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
