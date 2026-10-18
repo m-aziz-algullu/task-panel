@@ -26,7 +26,6 @@ const OPENCLAW_HOME = path.join(DATA_DIR, "openclaw");
 const SECRETS_DIR = path.join(DATA_DIR, "secrets");
 const OPENCLAW_ROOT = "/app";
 const APP_DIR = "/srv/task-panel";
-const APP_PORT = Number(process.env.PORT) || 3000;
 const agentEnabled = !/^(0|false|off|no)$/i.test(process.env.TASKPANEL_AGENT ?? "");
 
 function log(message) {
@@ -169,7 +168,7 @@ app = start("app", process.execPath, [path.join(APP_DIR, "server.js")], {
   gid: nextjs.gid,
   env: {
     ...(secrets
-      ? appEnv(process.env, { ...secrets, port: GATEWAY_PORT, appPort: APP_PORT })
+      ? appEnv(process.env, { ...secrets, port: GATEWAY_PORT })
       : process.env),
     HOME: APP_DIR,
     // The agent page warns that nothing is persisted.

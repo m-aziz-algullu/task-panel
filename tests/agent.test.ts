@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SESSION_KEY_PREFIX as GATEWAY_PREFIX } from "../docker/openclaw-bootstrap.mjs";
 import { claudeAuthFrom, claudeCliModels } from "@/lib/agent/claude-auth";
-import { fromInsideContainer, isLoopback } from "@/lib/agent/loopback";
-import { buildRunPrompt, type PromptInput } from "@/lib/agent/prompt";
+import { buildRunPrompt, parseRunReport, type PromptInput } from "@/lib/agent/prompt";
 import { DEFAULT_AGENT_SETTINGS, parseAgentSettings } from "@/lib/agent/settings-shape";
 import { parseSystemComment, systemCommentBody } from "@/lib/agent/system-comments";
 import en from "@/i18n/dictionaries/en";
@@ -14,15 +13,13 @@ const base: PromptInput = {
   tagNames: ["Araştırma"],
   comments: [{ author: "user", body: "Kaynak linki ekle.", createdAt: "2026-10-18T08:00:00.000Z" }],
   instructions: "Always answer in Turkish.",
-  apiBase: "http://127.0.0.1:3000/",
-  runToken: "tok123",
   tokenLimit: 250_000,
   limitMode: "hard",
   timeoutSeconds: 1800,
 };
 
 describe("buildRunPrompt", () => {
-  it("carries the task, its comments, the API contract and the limits", () => {
+  it("carries the task, its comments, the report format and the limits, but no credentials", () => {
     const prompt = buildRunPrompt(base);
     expect(prompt).toContain("task #7");
     expect(prompt).toContain("Title: Rakip fiyatlarını araştır");
@@ -30,8 +27,9 @@ describe("buildRunPrompt", () => {
     expect(prompt).toContain("İlk üç rakip yeter.");
     expect(prompt).toContain("Kaynak linki ekle.");
     expect(prompt).toContain("Always answer in Turkish.");
-    expect(prompt).toContain("Authorization: Bearer tok123");
-    expect(prompt).toContain("POST http://127.0.0.1:3000/api/agent/finish");
+    expect(prompt).toContain("`RESULT: done`");
+    expect(prompt).toContain("`RESULT: blocked`");
+    expect(prompt).not.toMatch(/Bearer|token:|\/api\//i);
     expect(prompt).toContain("250,000 tokens");
     expect(prompt).toContain("about 30 minutes");
     expect(prompt).toContain("Task Panel stops the run");
@@ -136,26 +134,25 @@ describe("claudeAuthFrom", () => {
   });
 });
 
-describe("agent API origin check", () => {
-  const request = (headers: Record<string, string>) => new Request("http://127.0.0.1:3000/api/agent/task", { headers });
-
-  it("accepts the agent's direct calls from inside the container", () => {
-    expect(fromInsideContainer(request({ "x-forwarded-for": "127.0.0.1" }))).toBe(true);
-    expect(fromInsideContainer(request({ "x-forwarded-for": "::ffff:127.0.0.1" }))).toBe(true);
-    expect(fromInsideContainer(request({ "x-forwarded-for": "::1" }))).toBe(true);
+describe("parseRunReport", () => {
+  it("reads the outcome line and keeps the rest as the report", () => {
+    expect(parseRunReport("RESULT: done\n\nFound 3 offers.")).toEqual({ outcome: "done", body: "Found 3 offers." });
+    expect(parseRunReport("**RESULT: blocked**\nNeed the login.")).toEqual({ outcome: "blocked", body: "Need the login." });
+    expect(parseRunReport("  `RESULT: Done`  \nok")).toEqual({ outcome: "done", body: "ok" });
   });
 
-  it("turns away anything that came through a proxy or from outside", () => {
-    expect(fromInsideContainer(request({ "x-forwarded-for": "203.0.113.7" }))).toBe(false);
-    expect(fromInsideContainer(request({ "x-forwarded-for": "127.0.0.1, 203.0.113.7" }))).toBe(false);
-    expect(fromInsideContainer(request({ "x-forwarded-for": "172.17.0.1" }))).toBe(false);
-    expect(fromInsideContainer(request({ "x-forwarded-for": "127.0.0.1", "x-real-ip": "203.0.113.7" }))).toBe(false);
-    expect(fromInsideContainer(request({}))).toBe(false);
+  it("treats a message without the line as a finished report", () => {
+    expect(parseRunReport("Here is what I found.")).toEqual({ outcome: "done", body: "Here is what I found." });
+    expect(parseRunReport("The RESULT: done line is not at the start")).toEqual({
+      outcome: "done",
+      body: "The RESULT: done line is not at the start",
+    });
   });
 
-  it("only reads loopback addresses as loopback", () => {
-    expect(isLoopback("127.10.0.1")).toBe(true);
-    expect(isLoopback("1270.0.0.1")).toBe(false);
-    expect(isLoopback("127.0.0.1.evil.com")).toBe(false);
+  it("has no report for an empty message and caps long ones", () => {
+    expect(parseRunReport(null)).toBeNull();
+    expect(parseRunReport("  ")).toBeNull();
+    expect(parseRunReport(`RESULT: done\n${"x".repeat(20_000)}`)!.body).toHaveLength(10_000);
   });
 });
+

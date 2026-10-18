@@ -127,7 +127,6 @@ const tr = {
     systemTimedOut: "Süre sınırı ({minutes} dk) doldu, çalışma durduruldu.",
     systemAborted: "Çalışma durduruldu.",
     systemFailed: "Ajan bir hatayla durdu: {error}",
-    systemNoReport: "Ajan rapor vermeden bitirdi. Son mesajı:\n\n{output}",
     systemNoReportEmpty: "Ajan rapor vermeden ve mesaj bırakmadan bitirdi.",
   },
   agentPage: {

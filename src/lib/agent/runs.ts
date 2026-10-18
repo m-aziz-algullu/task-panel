@@ -2,7 +2,6 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { newSessionToken, sessionIdFromToken } from "../auth";
 import { schema, type Db } from "../db";
 import { moveTaskTo } from "../task-status";
 import {
@@ -98,14 +97,10 @@ export async function enqueueRun(
   return rows[0] ? toRun(rows[0]) : null;
 }
 
-/**
- * Takes the oldest queued run and marks it running with a fresh API token for the
- * agent. Only the token's hash is stored; the raw token goes into the run's prompt.
- */
-export async function claimNextRun(db: Db): Promise<{ row: RunRow; token: string } | null> {
-  const token = newSessionToken();
+/** Takes the oldest queued run and marks it running. */
+export async function claimNextRun(db: Db): Promise<RunRow | null> {
   const rows = await db.execute<{ id: number }>(sql`
-    UPDATE agent_runs SET status = 'running', started_at = now(), token_hash = ${sessionIdFromToken(token)}
+    UPDATE agent_runs SET status = 'running', started_at = now()
     WHERE id = (
       SELECT id FROM agent_runs WHERE status = 'queued' ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
     )
@@ -113,7 +108,7 @@ export async function claimNextRun(db: Db): Promise<{ row: RunRow; token: string
   const id = (Array.isArray(rows) ? rows : (rows as { rows: { id: number }[] }).rows)[0]?.id;
   if (id == null) return null;
   const [row] = await db.select().from(agentRuns).where(eq(agentRuns.id, id));
-  return row ? { row, token } : null;
+  return row ?? null;
 }
 
 function newSessionKey(taskId: number): string {
@@ -127,7 +122,7 @@ function newSessionKey(taskId: number): string {
 export async function requeueRun(db: Db, run: Pick<RunRow, "id" | "taskId">): Promise<void> {
   await db
     .update(agentRuns)
-    .set({ status: "queued", startedAt: null, tokenHash: null, sessionKey: newSessionKey(run.taskId) })
+    .set({ status: "queued", startedAt: null, sessionKey: newSessionKey(run.taskId) })
     .where(and(eq(agentRuns.id, run.id), eq(agentRuns.status, "running")));
 }
 
@@ -148,21 +143,12 @@ export async function updateRun(
   await db.update(agentRuns).set(values).where(eq(agentRuns.id, runId));
 }
 
-/** The running run an agent API token belongs to; null once the run has ended. */
-export async function runForToken(db: Db, token: string): Promise<RunRow | null> {
-  const [row] = await db
-    .select()
-    .from(agentRuns)
-    .where(and(eq(agentRuns.tokenHash, sessionIdFromToken(token)), eq(agentRuns.status, "running")));
-  return row ?? null;
-}
-
 export async function addRunComment(db: Db, run: Pick<RunRow, "id" | "taskId">, author: CommentAuthor, body: string) {
   await db.insert(taskComments).values({ taskId: run.taskId, runId: run.id, author, body });
 }
 
 /**
- * Ends a queued or running run, once: the agent's finish call, a budget stop, a
+ * Ends a queued or running run, once: the agent's report, a budget stop, a
  * failure and the user's stop button can race, and only the first one counts.
  * Writes the run's closing comment and moves the task. Returns false if the run
  * had already ended.
@@ -185,8 +171,6 @@ export async function finalizeRun(
         status: outcome.status,
         error: outcome.error ?? null,
         finishedAt: new Date(),
-        // The token dies with the run.
-        tokenHash: null,
         ...(outcome.tokensUsed != null ? { tokensUsed: outcome.tokensUsed } : {}),
       })
       .where(and(eq(agentRuns.id, run.id), isActive))

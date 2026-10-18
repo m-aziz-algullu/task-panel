@@ -7,8 +7,6 @@ import path from "node:path";
 export type GatewayConnection = {
   url: string;
   token: string;
-  /** Task Panel's own address as seen from the Gateway, for the agent's API calls. */
-  appUrl: string;
 };
 
 const DEV_SECRETS_DIR = path.join(process.cwd(), ".data", "secrets");
@@ -35,7 +33,6 @@ export function gatewayConnection(): GatewayConnection | null {
   return {
     url: env.OPENCLAW_GATEWAY_URL || `ws://127.0.0.1:${port}`,
     token,
-    appUrl: env.TASKPANEL_INTERNAL_URL || `http://127.0.0.1:${env.PORT || 3000}`,
   };
 }
 
