@@ -1,0 +1,126 @@
+"use client";
+
+import { Bot, Info, Trash2, User } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { addComment, deleteComment } from "@/app/actions";
+import { useI18n } from "@/i18n/client";
+import type { MessageKey } from "@/i18n/translate";
+import { formatDateTime } from "@/lib/dates";
+import { MAX_COMMENT_LENGTH, type CommentAuthor, type TaskComment } from "@/lib/types";
+
+const AUTHOR_META: Record<CommentAuthor, { label: MessageKey; icon: typeof User; className: string }> = {
+  user: { label: "comments.you", icon: User, className: "bg-surface-2 text-fg" },
+  agent: { label: "comments.agent", icon: Bot, className: "bg-accent/15 text-accent" },
+  system: { label: "comments.system", icon: Info, className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+};
+
+export function TaskComments({ taskId, timeZone }: { taskId: number; timeZone: string }) {
+  const { t, intlLocale } = useI18n();
+  const [comments, setComments] = useState<TaskComment[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [error, setError] = useState<MessageKey | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/tasks/${taskId}/comments`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
+      .then((data: { comments: TaskComment[] }) => {
+        if (!cancelled) setComments(data.comments);
+      })
+      .catch(() => {
+        if (!cancelled) setError("comments.loadError");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
+
+  const submit = () => {
+    if (!draft.trim()) return;
+    startTransition(async () => {
+      const result = await addComment(taskId, draft);
+      if (!result.ok) return setError(result.error);
+      setComments((current) => [...(current ?? []), result.data]);
+      setDraft("");
+      setError(null);
+    });
+  };
+
+  const remove = (commentId: number) => {
+    if (!confirm(t("comments.deleteConfirm"))) return;
+    startTransition(async () => {
+      const result = await deleteComment(commentId);
+      if (!result.ok) return setError(result.error);
+      setComments((current) => current?.filter((comment) => comment.id !== commentId) ?? null);
+    });
+  };
+
+  return (
+    <section className="flex flex-col gap-3">
+      <span className="text-xs font-semibold text-muted">{t("comments.title")}</span>
+
+      {comments?.length === 0 && <p className="text-xs text-muted">{t("comments.empty")}</p>}
+      {comments && comments.length > 0 && (
+        <ol className="flex flex-col gap-2">
+          {comments.map((comment) => {
+            const meta = AUTHOR_META[comment.author];
+            const Icon = meta.icon;
+            return (
+              <li key={comment.id} className="group flex flex-col gap-1 rounded-lg border border-border p-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${meta.className}`}
+                  >
+                    <Icon className="size-3" />
+                    {t(meta.label)}
+                  </span>
+                  <time className="text-muted" dateTime={comment.createdAt}>
+                    {formatDateTime(comment.createdAt, timeZone, intlLocale)}
+                  </time>
+                  <button
+                    type="button"
+                    className="icon-btn ml-auto size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label={t("comments.delete")}
+                    title={t("comments.delete")}
+                    disabled={pending}
+                    onClick={() => remove(comment.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+                <p className="text-sm break-words whitespace-pre-wrap">{comment.body}</p>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      <div className="flex flex-col gap-2">
+        <textarea
+          className="input resize-y text-sm"
+          rows={2}
+          placeholder={t("comments.placeholder")}
+          value={draft}
+          maxLength={MAX_COMMENT_LENGTH}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            // Ctrl+Enter here sends the comment instead of saving the task form around it.
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              event.stopPropagation();
+              submit();
+            }
+          }}
+        />
+        <div className="flex items-center gap-2">
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{t(error)}</p>}
+          <span className="ml-auto hidden text-xs text-muted sm:inline">{t("comments.hint")}</span>
+          <button type="button" className="btn btn-ghost" disabled={pending || !draft.trim()} onClick={submit}>
+            {t("comments.add")}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}

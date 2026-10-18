@@ -84,4 +84,18 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `ALTER TABLE tasks ADD COLUMN description_doc jsonb`,
     ],
   },
+  {
+    version: 6,
+    statements: [
+      // Comments on a task, from the user or (later) the agent and the app itself.
+      `CREATE TABLE task_comments (
+        id serial PRIMARY KEY,
+        task_id integer NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+        author text NOT NULL CHECK (author IN ('user', 'agent', 'system')),
+        body text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`,
+      `CREATE INDEX task_comments_task_idx ON task_comments (task_id, created_at)`,
+    ],
+  },
 ];

@@ -12,6 +12,7 @@ import { ColorPicker, randomPresetColor } from "./color-picker";
 import { Modal } from "./modal";
 import { RichTextEditor } from "./rich-text/editor";
 import { TagPill } from "./tag-pill";
+import { TaskComments } from "./task-comments";
 
 type TaskDialogProps = {
   task?: Task;
@@ -174,6 +175,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClo
                 )}
               </dl>
             )}
+            {task && <TaskComments taskId={task.id} timeZone={clock.timeZone} />}
           </div>
 
           <div className="flex flex-col gap-5">

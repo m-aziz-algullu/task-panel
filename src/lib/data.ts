@@ -5,9 +5,9 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, ne, or, type SQL } from "d
 import { getDb, schema, type Db } from "./db";
 import { DEFAULT_TIME_ZONE, addDays, dayKey, isDayKey, startOfDay } from "./dates";
 import { requireSession } from "./session";
-import type { Clock, Status, Tag, Task } from "./types";
+import type { Clock, CommentAuthor, Status, Tag, Task, TaskComment } from "./types";
 
-const { tasks, tags, taskTags } = schema;
+const { tasks, tags, taskTags, taskComments } = schema;
 
 export function appTimeZone(): string {
   const tz = process.env.APP_TIMEZONE || DEFAULT_TIME_ZONE;
@@ -73,6 +73,26 @@ async function loadTasks(db: Db, where: SQL | undefined, order: SQL[], timeZone:
 export async function loadTask(db: Db, id: number): Promise<Task | null> {
   const [task] = await loadTasks(db, eq(tasks.id, id), [], appTimeZone());
   return task ?? null;
+}
+
+export function toComment(row: typeof taskComments.$inferSelect): TaskComment {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    author: row.author as CommentAuthor,
+    body: row.body,
+    createdAt: new Date(row.createdAt).toISOString(),
+  };
+}
+
+/** A task's comments, oldest first. */
+export async function listComments(db: Db, taskId: number): Promise<TaskComment[]> {
+  const rows = await db
+    .select()
+    .from(taskComments)
+    .where(eq(taskComments.taskId, taskId))
+    .orderBy(asc(taskComments.createdAt), asc(taskComments.id));
+  return rows.map(toComment);
 }
 
 export async function listTags(db: Db): Promise<Tag[]> {

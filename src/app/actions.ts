@@ -5,14 +5,23 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { isHexColor } from "@/lib/colors";
 import { getDb, schema, type Db } from "@/lib/db";
-import { getClock, loadTask } from "@/lib/data";
+import { getClock, loadTask, toComment } from "@/lib/data";
 import { addDays, dayKey, isDayKey, startOfDay } from "@/lib/dates";
 import { InvalidDocumentError, normalizeDocument } from "@/lib/rich-text/document";
 import { requireSession } from "@/lib/session";
-import { STATUSES, type Status, type Tag, type TagInput, type Task, type TaskInput } from "@/lib/types";
+import {
+  MAX_COMMENT_LENGTH,
+  STATUSES,
+  type Status,
+  type Tag,
+  type TagInput,
+  type Task,
+  type TaskComment,
+  type TaskInput,
+} from "@/lib/types";
 import type { MessageKey } from "@/i18n/translate";
 
-const { tasks, tags, taskTags } = schema;
+const { tasks, tags, taskTags, taskComments } = schema;
 
 /** Errors are message keys; the browser translates them into the viewer's language. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: MessageKey };
@@ -33,6 +42,12 @@ const taskInput = z.object({
     .optional(),
   tagIds: z.array(id).max(50),
 });
+
+const commentBody = z
+  .string()
+  .trim()
+  .min(1, msg("errors.commentRequired"))
+  .max(MAX_COMMENT_LENGTH, msg("errors.commentTooLong"));
 
 const tagInput = z.object({
   name: z.string().trim().min(1, msg("errors.tagNameRequired")).max(40, msg("errors.tagNameTooLong")),
@@ -215,6 +230,32 @@ export async function deleteTask(rawId: number): Promise<ActionResult> {
     const db = await getDb();
     await db.delete(tasks).where(eq(tasks.id, id.parse(rawId)));
     refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function addComment(rawTaskId: number, rawBody: string): Promise<ActionResult<TaskComment>> {
+  await requireSession();
+  try {
+    const taskId = id.parse(rawTaskId);
+    const body = commentBody.parse(rawBody);
+    const db = await getDb();
+    const [task] = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId));
+    if (!task) return { ok: false, error: "errors.taskNotFound" };
+    const [row] = await db.insert(taskComments).values({ taskId, author: "user", body }).returning();
+    return { ok: true, data: toComment(row) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteComment(rawId: number): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const db = await getDb();
+    await db.delete(taskComments).where(eq(taskComments.id, id.parse(rawId)));
     return { ok: true, data: undefined };
   } catch (error) {
     return fail(error);

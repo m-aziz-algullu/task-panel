@@ -51,6 +51,20 @@ export type TaskInput = {
   tagIds: number[];
 };
 
+/** Who wrote a comment: you, the agent working on the task, or the app reporting on a run. */
+export const COMMENT_AUTHORS = ["user", "agent", "system"] as const;
+export type CommentAuthor = (typeof COMMENT_AUTHORS)[number];
+
+export const MAX_COMMENT_LENGTH = 10_000;
+
+export type TaskComment = {
+  id: number;
+  taskId: number;
+  author: CommentAuthor;
+  body: string;
+  createdAt: string;
+};
+
 export type TagInput = {
   name: string;
   color: string;

@@ -38,6 +38,16 @@ export const taskTags = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.tagId] })],
 );
 
+export const taskComments = pgTable("task_comments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  author: text("author").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
