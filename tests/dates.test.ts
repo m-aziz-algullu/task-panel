@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, dayKey, formatDay, formatLongDay, isDayKey, startOfDay } from "@/lib/dates";
+import { addDays, dayKey, daysBetweenDesc, formatDay, formatLongDay, isDayKey, startOfDay } from "@/lib/dates";
 
 describe("dayKey", () => {
   it("uses the given time zone, not UTC", () => {
@@ -26,6 +26,17 @@ describe("addDays", () => {
   it("crosses month and year boundaries", () => {
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+  });
+});
+
+describe("daysBetweenDesc", () => {
+  it("lists every day newest first, across month boundaries", () => {
+    expect(daysBetweenDesc("2026-02-27", "2026-03-02")).toEqual(["2026-03-02", "2026-03-01", "2026-02-28", "2026-02-27"]);
+  });
+
+  it("handles a single day and an inverted range", () => {
+    expect(daysBetweenDesc("2026-10-14", "2026-10-14")).toEqual(["2026-10-14"]);
+    expect(daysBetweenDesc("2026-10-15", "2026-10-14")).toEqual([]);
   });
 });
 

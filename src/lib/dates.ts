@@ -32,6 +32,13 @@ export function addDays(key: string, days: number): string {
   return new Date(keyToUtc(key) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
+/** Every day from `to` back to `from`, both included, newest first. Empty if `from` is after `to`. */
+export function daysBetweenDesc(from: string, to: string): string[] {
+  const days: string[] = [];
+  for (let day = to; day >= from; day = addDays(day, -1)) days.push(day);
+  return days;
+}
+
 /** Offset of `timeZone` from UTC at `date`, in ms (positive east of UTC). */
 function offsetMs(date: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {

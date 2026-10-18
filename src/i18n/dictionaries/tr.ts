@@ -105,6 +105,8 @@ const tr = {
     collapse: "Günü daralt",
     expand: "Günü aç",
     noneInRange: "Bu aralıkta tamamlanan task yok.",
+    noneOnDay: "Bu gün tamamlanan iş yok",
+    noMatchOnDay: "Bu gün filtreyle eşleşen task yok",
     last30: "Son 30 gün",
     thisMonth: "Bu ay",
     prevMonth: "Önceki ay",
