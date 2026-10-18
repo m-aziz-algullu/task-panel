@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react";
+import { Bot, CalendarDays } from "lucide-react";
 import { useI18n } from "@/i18n/client";
 import { formatDay } from "@/lib/dates";
 import type { Tag, Task } from "@/lib/types";
@@ -42,6 +42,14 @@ export function TaskCard({ task, tagsById, today, lifted }: TaskCardProps) {
           <CalendarDays className="size-3.5" />
           {formatDay(task.day, today, dayLabels, intlLocale)}
         </span>
+        {task.agentRun && (
+          <span
+            className={`inline-flex items-center ${task.agentRun === "running" ? "animate-pulse text-accent" : ""}`}
+            title={t(task.agentRun === "running" ? "agentRun.cardRunning" : "agentRun.cardQueued")}
+          >
+            <Bot className="size-3.5" />
+          </span>
+        )}
         <span className="ml-auto font-mono text-[11px]">#{task.id}</span>
         {task.storyPoints != null && (
           <span

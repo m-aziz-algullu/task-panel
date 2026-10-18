@@ -19,7 +19,17 @@ function dayBadge(day: string, today: string, t: Translate): string | null {
   return null;
 }
 
-export function CompletedView({ tasks, tags, clock }: { tasks: Task[]; tags: Tag[]; clock: Clock }) {
+export function CompletedView({
+  tasks,
+  tags,
+  clock,
+  agent,
+}: {
+  tasks: Task[];
+  tags: Tag[];
+  clock: Clock;
+  agent: boolean;
+}) {
   const { t, intlLocale } = useI18n();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [openId, setOpenId] = useState<number | null>(null);
@@ -178,7 +188,14 @@ export function CompletedView({ tasks, tags, clock }: { tasks: Task[]; tags: Tag
       })}
 
       {openTask && (
-        <TaskDialog key={openTask.id} task={openTask} tags={tags} clock={clock} onClose={() => setOpenId(null)} />
+        <TaskDialog
+          key={openTask.id}
+          task={openTask}
+          tags={tags}
+          clock={clock}
+          agent={agent}
+          onClose={() => setOpenId(null)}
+        />
       )}
     </div>
   );

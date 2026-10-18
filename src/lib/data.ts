@@ -5,9 +5,10 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, ne, or, type SQL } from "d
 import { getDb, schema, type Db } from "./db";
 import { DEFAULT_TIME_ZONE, addDays, dayKey, isDayKey, startOfDay } from "./dates";
 import { requireSession } from "./session";
-import type { Clock, CommentAuthor, Status, Tag, Task, TaskComment } from "./types";
+import { agentEnabled } from "./openclaw/connection";
+import { ACTIVE_RUN_STATUSES, type Clock, type CommentAuthor, type RunStatus, type Status, type Tag, type Task, type TaskComment } from "./types";
 
-const { tasks, tags, taskTags, taskComments } = schema;
+const { tasks, tags, taskTags, taskComments, agentRuns } = schema;
 
 export function appTimeZone(): string {
   const tz = process.env.APP_TIMEZONE || DEFAULT_TIME_ZONE;
@@ -27,7 +28,7 @@ export function getClock(now = new Date()): Clock {
 
 type TaskRow = typeof tasks.$inferSelect;
 
-export function toTask(row: TaskRow, tagIds: number[], timeZone: string): Task {
+export function toTask(row: TaskRow, tagIds: number[], timeZone: string, agentRun: RunStatus | null = null): Task {
   return {
     id: row.id,
     title: row.title,
@@ -41,6 +42,7 @@ export function toTask(row: TaskRow, tagIds: number[], timeZone: string): Task {
     createdAt: new Date(row.createdAt).toISOString(),
     completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
     completedDay: row.completedAt ? dayKey(new Date(row.completedAt), timeZone) : null,
+    agentRun,
   };
 }
 
@@ -57,17 +59,25 @@ async function tagIdsByTask(db: Db, taskIds: number[]): Promise<Map<number, numb
   return map;
 }
 
+/** Queued or running agent run per task. */
+async function activeRunsByTask(db: Db, taskIds: number[]): Promise<Map<number, RunStatus>> {
+  if (taskIds.length === 0) return new Map();
+  const rows = await db
+    .select({ taskId: agentRuns.taskId, status: agentRuns.status })
+    .from(agentRuns)
+    .where(and(inArray(agentRuns.taskId, taskIds), inArray(agentRuns.status, [...ACTIVE_RUN_STATUSES])));
+  return new Map(rows.map((row) => [row.taskId, row.status as RunStatus]));
+}
+
 async function loadTasks(db: Db, where: SQL | undefined, order: SQL[], timeZone: string): Promise<Task[]> {
   const rows = await db
     .select()
     .from(tasks)
     .where(where)
     .orderBy(...order);
-  const tagMap = await tagIdsByTask(
-    db,
-    rows.map((r) => r.id),
-  );
-  return rows.map((row) => toTask(row, tagMap.get(row.id) ?? [], timeZone));
+  const ids = rows.map((r) => r.id);
+  const [tagMap, runMap] = await Promise.all([tagIdsByTask(db, ids), activeRunsByTask(db, ids)]);
+  return rows.map((row) => toTask(row, tagMap.get(row.id) ?? [], timeZone, runMap.get(row.id) ?? null));
 }
 
 export async function loadTask(db: Db, id: number): Promise<Task | null> {
@@ -81,6 +91,7 @@ export function toComment(row: typeof taskComments.$inferSelect): TaskComment {
     taskId: row.taskId,
     author: row.author as CommentAuthor,
     body: row.body,
+    runId: row.runId,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }
@@ -118,7 +129,7 @@ export async function getBoardData() {
     loadTasks(db, visible, [asc(tasks.position), desc(tasks.id)], clock.timeZone),
     listTags(db),
   ]);
-  return { tasks: taskList, tags: tagList, clock };
+  return { tasks: taskList, tags: tagList, clock, agent: agentEnabled() };
 }
 
 export async function getCompletedData() {
@@ -133,5 +144,5 @@ export async function getCompletedData() {
     ),
     listTags(db),
   ]);
-  return { tasks: taskList, tags: tagList, clock };
+  return { tasks: taskList, tags: tagList, clock, agent: agentEnabled() };
 }

@@ -37,6 +37,8 @@ export type Task = {
   completedAt: string | null;
   /** Day (YYYY-MM-DD, app time zone) the task was completed on. */
   completedDay: string | null;
+  /** The agent run currently queued or running for this task, if any. */
+  agentRun: RunStatus | null;
 };
 
 export type TaskInput = {
@@ -62,7 +64,60 @@ export type TaskComment = {
   taskId: number;
   author: CommentAuthor;
   body: string;
+  /** The agent run that wrote it (agent and system comments). */
+  runId: number | null;
   createdAt: string;
+};
+
+/** OpenClaw session keys of agent runs; the bundled Gateway only accepts caller keys with this prefix. */
+export const AGENT_SESSION_KEY_PREFIX = "taskpanel:";
+
+export const RUN_STATUSES = [
+  "queued",
+  "running",
+  "done",
+  "blocked",
+  "failed",
+  "timed_out",
+  "budget_exceeded",
+  "aborted",
+] as const;
+export type RunStatus = (typeof RUN_STATUSES)[number];
+export const ACTIVE_RUN_STATUSES = ["queued", "running"] as const satisfies readonly RunStatus[];
+
+/** Soft: the agent is told the budget and keeps to it. Hard: Task Panel also stops the run when it's spent. */
+export const LIMIT_MODES = ["soft", "hard"] as const;
+export type LimitMode = (typeof LIMIT_MODES)[number];
+
+export const TOKEN_PRESETS = ["simple", "medium", "hard"] as const;
+export type TokenPreset = (typeof TOKEN_PRESETS)[number];
+
+export type AgentRun = {
+  id: number;
+  taskId: number;
+  status: RunStatus;
+  trigger: "manual" | "tag";
+  agentId: string | null;
+  model: string | null;
+  thinking: string | null;
+  timeoutSeconds: number;
+  tokenLimit: number;
+  limitMode: LimitMode;
+  tokensUsed: number;
+  error: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+/** What the run panel sends when handing a task to the agent. */
+export type AgentRunInput = {
+  agentId: string | null;
+  model: string | null;
+  thinking: string | null;
+  timeoutSeconds: number;
+  tokenLimit: number;
+  limitMode: LimitMode;
 };
 
 export type TagInput = {

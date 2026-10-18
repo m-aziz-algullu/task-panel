@@ -98,4 +98,34 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `CREATE INDEX task_comments_task_idx ON task_comments (task_id, created_at)`,
     ],
   },
+  {
+    version: 7,
+    statements: [
+      // One agent run per row: what was asked (model, budget…) and how it ended.
+      `CREATE TABLE agent_runs (
+        id serial PRIMARY KEY,
+        task_id integer NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+        status text NOT NULL CHECK (status IN ('queued', 'running', 'done', 'blocked', 'failed', 'timed_out', 'budget_exceeded', 'aborted')),
+        trigger text NOT NULL CHECK (trigger IN ('manual', 'tag')),
+        agent_id text,
+        model text,
+        thinking text,
+        timeout_seconds integer NOT NULL,
+        token_limit integer NOT NULL,
+        limit_mode text NOT NULL CHECK (limit_mode IN ('soft', 'hard')),
+        session_key text NOT NULL UNIQUE,
+        openclaw_run_id text,
+        token_hash text UNIQUE,
+        tokens_used integer NOT NULL DEFAULT 0,
+        error text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        started_at timestamptz,
+        finished_at timestamptz
+      )`,
+      // At most one queued or running run per task.
+      `CREATE UNIQUE INDEX agent_runs_active_task_idx ON agent_runs (task_id) WHERE status IN ('queued', 'running')`,
+      `CREATE INDEX agent_runs_status_idx ON agent_runs (status, created_at)`,
+      `ALTER TABLE task_comments ADD COLUMN run_id integer REFERENCES agent_runs (id) ON DELETE SET NULL`,
+    ],
+  },
 ];

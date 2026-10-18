@@ -63,7 +63,8 @@ WORKDIR /srv/task-panel
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
-COPY docker/openclaw-bootstrap.mjs docker/supervisor.mjs /srv/docker/
+COPY docker/openclaw-bootstrap.mjs docker/supervisor.mjs docker/agent-shell.sh /srv/docker/
+RUN chmod 755 /srv/docker/agent-shell.sh
 
 # No VOLUME instruction on purpose: an anonymous volume would look persistent but
 # be replaced on every redeploy. The supervisor warns when /data isn't mounted.

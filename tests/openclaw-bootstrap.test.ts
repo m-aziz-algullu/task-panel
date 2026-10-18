@@ -16,34 +16,29 @@ afterEach(() => {
 });
 
 describe("ensureSecrets", () => {
-  it("generates the tokens once and reuses them on the next start", () => {
+  it("generates the token once and reuses it on the next start", () => {
     const dir = tempDir();
     const first = ensureSecrets(dir, {});
     expect(first.gatewayToken).toMatch(/^[\w-]{43}$/);
-    expect(first.hooksToken).not.toBe(first.gatewayToken);
     expect(ensureSecrets(dir, {})).toEqual(first);
   });
 
-  it("lets the environment override the stored tokens", () => {
+  it("lets the environment override the stored token", () => {
     const dir = tempDir();
     ensureSecrets(dir, {});
-    expect(ensureSecrets(dir, { OPENCLAW_GATEWAY_TOKEN: "gw", OPENCLAW_HOOKS_TOKEN: "hk" })).toEqual({
-      gatewayToken: "gw",
-      hooksToken: "hk",
-    });
-  });
-
-  it("refuses one value for both tokens", () => {
-    expect(() => ensureSecrets(tempDir(), { OPENCLAW_GATEWAY_TOKEN: "same", OPENCLAW_HOOKS_TOKEN: "same" })).toThrow();
+    expect(ensureSecrets(dir, { OPENCLAW_GATEWAY_TOKEN: "gw" })).toEqual({ gatewayToken: "gw" });
   });
 });
 
 describe("managedConfig", () => {
-  it("keeps the Gateway on loopback and only admits Task Panel's session keys", () => {
-    const config = Object.fromEntries(managedConfig({ hooksToken: "hk" }).map((entry) => [entry.path, entry.value]));
-    expect(config["gateway.bind"]).toBe("loopback");
-    expect(config["hooks.token"]).toBe("hk");
-    expect(config["hooks.allowedSessionKeyPrefixes"]).toEqual(["hook:", "taskpanel:"]);
+  it("keeps the Gateway on loopback with token auth and leaves hooks alone", () => {
+    const config = Object.fromEntries(managedConfig().map((entry) => [entry.path, entry.value]));
+    expect(config).toEqual({
+      "gateway.mode": "local",
+      "gateway.bind": "loopback",
+      "gateway.port": 18789,
+      "gateway.auth.mode": "token",
+    });
   });
 });
 
@@ -53,29 +48,40 @@ describe("process environments", () => {
     DATABASE_URL: "postgres://secret",
     DATABASE_POOL_SIZE: "5",
     SETUP_TOKEN: "code",
+    S3_SECRET_ACCESS_KEY: "app-only",
     ANTHROPIC_API_KEY: "sk-provider",
+    TELEGRAM_API_KEY: "channel",
+    NODE_ENV: "production",
   };
 
   it("keeps the app's secrets away from the Gateway", () => {
-    const env = gatewayEnv({ ...base, OPENCLAW_HOOKS_TOKEN: "hk" }, { home: "/data/openclaw", gatewayToken: "gw" });
+    const env = gatewayEnv(base, { home: "/data/openclaw", gatewayToken: "gw" });
     expect(env).not.toHaveProperty("DATABASE_URL");
     expect(env).not.toHaveProperty("DATABASE_POOL_SIZE");
     expect(env).not.toHaveProperty("SETUP_TOKEN");
-    expect(env).not.toHaveProperty("OPENCLAW_HOOKS_TOKEN");
+    // ~/.local/bin (where Claude Code installs itself) comes first, except on Windows.
+    expect(env.PATH).toBe(
+      process.platform === "win32" ? "/usr/bin" : [path.join("/data/openclaw", ".local", "bin"), "/usr/bin"].join(path.delimiter),
+    );
     expect(env).toMatchObject({
-      PATH: "/usr/bin",
       ANTHROPIC_API_KEY: "sk-provider",
+      TELEGRAM_API_KEY: "channel",
+      NODE_ENV: "production",
       HOME: "/data/openclaw",
       OPENCLAW_HOME: "/data/openclaw",
       OPENCLAW_GATEWAY_TOKEN: "gw",
     });
   });
 
-  it("tells the app where the Gateway and the hooks are", () => {
-    expect(appEnv(base, { gatewayToken: "gw", hooksToken: "hk", appPort: 3000 })).toMatchObject({
+  it.skipIf(process.platform === "win32")("passes nothing it doesn't know on Linux", () => {
+    expect(gatewayEnv(base, { home: "/data/openclaw", gatewayToken: "gw" })).not.toHaveProperty("S3_SECRET_ACCESS_KEY");
+  });
+
+  it("tells the app where the Gateway is", () => {
+    expect(appEnv(base, { gatewayToken: "gw", appPort: 3000 })).toMatchObject({
       DATABASE_URL: "postgres://secret",
       OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:18789",
-      OPENCLAW_HOOKS_URL: "http://127.0.0.1:18789/hooks",
+      OPENCLAW_GATEWAY_TOKEN: "gw",
       TASKPANEL_INTERNAL_URL: "http://127.0.0.1:3000",
     });
   });

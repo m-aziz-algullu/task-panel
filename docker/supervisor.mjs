@@ -116,13 +116,17 @@ if (agentEnabled) {
   fs.mkdirSync(OPENCLAW_HOME, { recursive: true, mode: 0o700 });
   fs.chownSync(OPENCLAW_HOME, node.uid, node.gid);
   secrets = ensureSecrets(SECRETS_DIR);
+  // Owned by the Gateway's user, so `agent-shell.sh` can run OpenClaw's CLI. The
+  // agent already shares that uid with the Gateway, which holds the token.
   fs.chmodSync(SECRETS_DIR, 0o700);
+  for (const entry of [SECRETS_DIR, ...fs.readdirSync(SECRETS_DIR).map((name) => path.join(SECRETS_DIR, name))]) {
+    fs.chownSync(entry, node.uid, node.gid);
+  }
 
   const env = gatewayEnv(process.env, { home: OPENCLAW_HOME, gatewayToken: secrets.gatewayToken });
   try {
     applyManagedConfig({
       command: [process.execPath, path.join(OPENCLAW_ROOT, "openclaw.mjs")],
-      hooksToken: secrets.hooksToken,
       port: GATEWAY_PORT,
       env,
       uid: node.uid,

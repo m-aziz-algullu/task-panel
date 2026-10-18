@@ -1,17 +1,27 @@
 "use server";
 
-import { and, eq, inArray, min, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { isHexColor } from "@/lib/colors";
 import { getDb, schema, type Db } from "@/lib/db";
+import { syncAgentTag } from "@/lib/agent/auto";
+import { activeRun, enqueueRun, finalizeRun } from "@/lib/agent/runs";
+import { MAX_TIMEOUT_SECONDS, MAX_TOKEN_LIMIT, MIN_TOKEN_LIMIT } from "@/lib/agent/settings-shape";
+import { systemCommentBody } from "@/lib/agent/system-comments";
+import { abortSession, pokeAgentWorker } from "@/lib/agent/worker";
 import { getClock, loadTask, toComment } from "@/lib/data";
-import { addDays, dayKey, isDayKey, startOfDay } from "@/lib/dates";
+import { isDayKey } from "@/lib/dates";
+import { agentEnabled } from "@/lib/openclaw/connection";
 import { InvalidDocumentError, normalizeDocument } from "@/lib/rich-text/document";
 import { requireSession } from "@/lib/session";
+import { completedAtFor, topPosition } from "@/lib/task-status";
 import {
+  LIMIT_MODES,
   MAX_COMMENT_LENGTH,
   STATUSES,
+  type AgentRun,
+  type AgentRunInput,
   type Status,
   type Tag,
   type TagInput,
@@ -49,6 +59,21 @@ const commentBody = z
   .min(1, msg("errors.commentRequired"))
   .max(MAX_COMMENT_LENGTH, msg("errors.commentTooLong"));
 
+const optionalName = z.string().trim().min(1).max(200).nullable();
+
+const agentRunInput = z.object({
+  agentId: optionalName,
+  model: optionalName,
+  thinking: optionalName,
+  timeoutSeconds: z.number().int().min(60, msg("errors.timeoutInvalid")).max(MAX_TIMEOUT_SECONDS, msg("errors.timeoutInvalid")),
+  tokenLimit: z
+    .number()
+    .int()
+    .min(MIN_TOKEN_LIMIT, msg("errors.tokenLimitInvalid"))
+    .max(MAX_TOKEN_LIMIT, msg("errors.tokenLimitInvalid")),
+  limitMode: z.enum(LIMIT_MODES),
+});
+
 const tagInput = z.object({
   name: z.string().trim().min(1, msg("errors.tagNameRequired")).max(40, msg("errors.tagNameTooLong")),
   color: z.string().refine(isHexColor, msg("errors.colorInvalid")),
@@ -68,15 +93,6 @@ function fail(error: unknown): { ok: false; error: MessageKey } {
   return { ok: false, error: "errors.generic" };
 }
 
-/** Position that puts a task on top of `status`'s column. */
-async function topPosition(db: Db, status: Status): Promise<number> {
-  const [row] = await db
-    .select({ value: min(tasks.position) })
-    .from(tasks)
-    .where(eq(tasks.status, status));
-  return row?.value == null ? 0 : row.value - 1;
-}
-
 async function setTags(db: Db, taskId: number, tagIds: number[]) {
   await db.delete(taskTags).where(eq(taskTags.taskId, taskId));
   const unique = [...new Set(tagIds)];
@@ -84,27 +100,6 @@ async function setTags(db: Db, taskId: number, tagIds: number[]) {
   const existing = await db.select({ id: tags.id }).from(tags).where(inArray(tags.id, unique));
   if (existing.length === 0) return;
   await db.insert(taskTags).values(existing.map((t) => ({ taskId, tagId: t.id })));
-}
-
-/**
- * completed_at follows the status: stamped on entering Done, cleared on leaving it.
- * `completedDay` records the completion on an earlier day (e.g. yesterday's leftovers
- * finished this morning) by stamping the last moment of that day.
- */
-function completedAtFor(
-  next: Status,
-  previous: { status: string; completedAt: Date | null } | null,
-  completedDay?: string,
-) {
-  if (next !== "done") return null;
-  const kept = previous?.status === "done" ? previous.completedAt : null;
-  if (completedDay) {
-    const { today, timeZone } = getClock();
-    if (kept && dayKey(kept, timeZone) === completedDay) return kept;
-    if (completedDay === today) return new Date();
-    return new Date(startOfDay(addDays(completedDay, 1), timeZone).getTime() - 1);
-  }
-  return kept ?? new Date();
 }
 
 export async function createTask(raw: TaskInput): Promise<ActionResult<Task>> {
@@ -130,6 +125,7 @@ export async function createTask(raw: TaskInput): Promise<ActionResult<Task>> {
       await setTags(tx, row.id, input.tagIds);
       return row.id;
     });
+    await syncAgentTag(db, { id: taskId, status: input.status }, [], input.tagIds);
     const task = await loadTask(db, taskId);
     refresh();
     return { ok: true, data: task! };
@@ -145,6 +141,11 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
     const input = taskInput.parse(raw);
     const description = normalizeDocument(input.descriptionDoc);
     const db = await getDb();
+    const previousTagIds = await db
+      .select({ tagId: taskTags.tagId })
+      .from(taskTags)
+      .where(eq(taskTags.taskId, taskId))
+      .then((rows) => rows.map((row) => row.tagId));
     const found = await db.transaction(async (tx) => {
       const [current] = await tx.select().from(tasks).where(eq(tasks.id, taskId));
       if (!current) return false;
@@ -167,6 +168,7 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
       return true;
     });
     if (!found) return { ok: false, error: "errors.taskNotFound" };
+    await syncAgentTag(db, { id: taskId, status: input.status }, previousTagIds, input.tagIds);
     const task = await loadTask(db, taskId);
     refresh();
     return { ok: true, data: task! };
@@ -256,6 +258,46 @@ export async function deleteComment(rawId: number): Promise<ActionResult> {
   try {
     const db = await getDb();
     await db.delete(taskComments).where(eq(taskComments.id, id.parse(rawId)));
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Hands a task to the agent: queues a run that the worker starts as soon as there's room. */
+export async function startAgentRun(rawTaskId: number, raw: AgentRunInput): Promise<ActionResult<AgentRun>> {
+  await requireSession();
+  try {
+    const taskId = id.parse(rawTaskId);
+    const input = agentRunInput.parse(raw);
+    if (!agentEnabled()) return { ok: false, error: "errors.agentUnavailable" };
+    const db = await getDb();
+    const [task] = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId));
+    if (!task) return { ok: false, error: "errors.taskNotFound" };
+    const run = await enqueueRun(db, taskId, input, "manual");
+    if (!run) return { ok: false, error: "errors.agentRunActive" };
+    pokeAgentWorker();
+    refresh();
+    return { ok: true, data: run };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Stops the task's queued or running agent run. */
+export async function stopAgentRun(rawTaskId: number): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const db = await getDb();
+    const run = await activeRun(db, id.parse(rawTaskId));
+    if (run) {
+      const ended = await finalizeRun(db, run, {
+        status: "aborted",
+        comment: { author: "system", body: systemCommentBody("agentRun.systemAborted") },
+      });
+      if (ended && run.status === "running") await abortSession(run);
+    }
+    refresh();
     return { ok: true, data: undefined };
   } catch (error) {
     return fail(error);

@@ -9,7 +9,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { GATEWAY_PORT, applyManagedConfig, ensureSecrets, gatewayEnv } from "../docker/openclaw-bootstrap.mjs";
+import { applyManagedConfig, ensureSecrets, gatewayEnv } from "../docker/openclaw-bootstrap.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -19,6 +19,8 @@ const runtimeDir = path.join(root, ".data", "openclaw-runtime");
 const home = path.join(root, ".data", "openclaw");
 const secretsDir = path.join(root, ".data", "secrets");
 const cli = path.join(runtimeDir, "node_modules", "openclaw", "openclaw.mjs");
+// Not OpenClaw's default 18789, so a personal OpenClaw on the same machine keeps its port.
+const port = Number(process.env.OPENCLAW_DEV_PORT) || 18799;
 
 function installedVersion() {
   try {
@@ -42,14 +44,16 @@ if (installedVersion() !== version) {
 
 fs.mkdirSync(home, { recursive: true });
 const secrets = ensureSecrets(secretsDir);
+// The dev server reads the address from here (src/lib/openclaw/connection.ts).
+fs.writeFileSync(path.join(secretsDir, "gateway-port"), `${port}\n`);
 const env = gatewayEnv(process.env, { home, gatewayToken: secrets.gatewayToken });
 const command = [process.execPath, cli];
 
 console.log(`[agent:dev] OpenClaw ${version}, HOME=${path.relative(root, home)}`);
-applyManagedConfig({ command, hooksToken: secrets.hooksToken, port: GATEWAY_PORT, env, cwd: root });
+applyManagedConfig({ command, port, env, cwd: root });
 
 const gateway = spawn(process.execPath, [cli, "gateway"], { cwd: root, env, stdio: "inherit" });
-console.log(`[agent:dev] Gateway starting on 127.0.0.1:${GATEWAY_PORT}; stop with Ctrl+C.`);
+console.log(`[agent:dev] Gateway starting on 127.0.0.1:${port}; stop with Ctrl+C.`);
 
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => gateway.kill(signal));
 gateway.on("exit", (code, signal) => process.exit(signal ? 1 : (code ?? 0)));

@@ -64,14 +64,14 @@ npm run typecheck
 npm test
 ```
 
-**Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18789` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz.
+**Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18799` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz. Claude aboneliğini kullanması için bilgisayarında Claude Code'a giriş yap (`claude auth login`) ve `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default` çalıştır; işe yarayıp yaramadığını **Ajan** sayfası gösterir.
 
 ## Kendi sunucuna kurulum
 
 Production **sadece PostgreSQL** ile çalışır: `DATABASE_URL` yoksa sunucu açılmaz. Tablolar açılışta otomatik oluşturulur ve güncellenir.
 
 Varsayılan Docker imajı Task Panel'le aynı container'da gömülü bir [OpenClaw](https://openclaw.ai) Gateway'i de çalıştırır:
-- Gateway sadece container içinden (loopback) erişilir ve token'larını ilk açılışta kendisi üretir.
+- Gateway sadece container içinden (loopback) erişilir ve token'ını ilk açılışta kendisi üretir. Ona sadece model sağlayıcı anahtarları ve OpenClaw'ın kendi ayarları aktarılır; `DATABASE_URL` ve uygulamanın diğer değişkenleri Task Panel'de kalır.
 - Ajanın hafızası, oturumları, sağlayıcı anahtarları ve skill'leri `/data` altında tutulur. **`/data`'ya bir volume bağla**, yoksa her deploy'da sıfırlanır.
 - Bu imaj için en az 2 GB RAM öner.
 - Ajan istemiyorsan daha küçük imaj için `docker build --target plain .` kullan, ya da imaj içinde `TASKPANEL_AGENT=off` ver.
@@ -100,6 +100,19 @@ Sonra http://localhost:3000 adresini aç. `app-data` volume'ü `/data`'ya bağl�
 
 **Yedekleme:** task'lar sunucudaki Postgres volume'ünde, ajan verisi `task-panel-data` volume'ünde durur. Dokploy'da *Settings → S3 Destinations* altında bir S3 hedefi ekle (AWS S3, Cloudflare R2, Backblaze B2 vb.), sonra veritabanının **Backups** sekmesinden zamanlanmış yedek kur (ör. her gün `0 3 * * *`).
 
+### Ajan: Claude hesabınla giriş
+
+Ajan, API anahtarı olmadan kendi Claude aboneliğinle, resmi Claude Code CLI üzerinden çalışabilir. Bunu sunucu başına bir kez yap; CLI ve girişi `/data` volume'unda kalır:
+
+```bash
+docker exec -it -u node <container> /srv/docker/agent-shell.sh
+curl -fsSL https://claude.ai/install.sh | bash     # Claude Code'u /data altına kurar
+claude auth login                                   # Anthropic'in kendi giriş akışını açar
+openclaw models auth login --provider anthropic --method cli --set-default
+```
+
+Herkes kendi hesabıyla giriş yapar ve giriş her zaman Anthropic'in akışında tamamlanır; Task Panel Claude kimlik bilgilerini hiç görmez ve saklamaz. Abonelik limitleri olağan bireysel kullanıma göre belirlenir; Anthropic'in [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına bak. Yoğun ve sürekli kullanım için bunun yerine `ANTHROPIC_API_KEY` ver.
+
 ### Ortam değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
@@ -110,7 +123,7 @@ Sonra http://localhost:3000 adresini aç. `app-data` volume'ü `/data`'ya bağl�
 | `DATABASE_POOL_SIZE` | Hayır | En fazla Postgres bağlantısı. Varsayılan `5`. |
 | `PGLITE_DIR` | Hayır | Sadece geliştirme: gömülü veritabanının klasörü. |
 | `TASKPANEL_AGENT` | Hayır | `off` verilirse ajan imajı OpenClaw'ı başlatmaz. |
-| `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_HOOKS_TOKEN` | Hayır | Token'ları kendin sabitlemek istersen. Verilmezse üretilip `/data/secrets` altında saklanır. |
+| `OPENCLAW_GATEWAY_TOKEN` | Hayır | Gateway token'ını kendin sabitlemek istersen. Verilmezse üretilip `/data/secrets` altında saklanır. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | Hayır | Model sağlayıcı anahtarları, OpenClaw'a aktarılır. |
 
 Sağlık kontrolü: `GET /api/health`.

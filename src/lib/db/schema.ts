@@ -45,7 +45,32 @@ export const taskComments = pgTable("task_comments", {
     .references(() => tasks.id, { onDelete: "cascade" }),
   author: text("author").notNull(),
   body: text("body").notNull(),
+  runId: integer("run_id").references(() => agentRuns.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const agentRuns = pgTable("agent_runs", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),
+  trigger: text("trigger").notNull(),
+  agentId: text("agent_id"),
+  model: text("model"),
+  thinking: text("thinking"),
+  timeoutSeconds: integer("timeout_seconds").notNull(),
+  tokenLimit: integer("token_limit").notNull(),
+  limitMode: text("limit_mode").notNull(),
+  sessionKey: text("session_key").notNull().unique(),
+  openclawRunId: text("openclaw_run_id"),
+  /** SHA-256 of the run's API token, like sessions.id. */
+  tokenHash: text("token_hash").unique(),
+  tokensUsed: integer("tokens_used").notNull().default(0),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
 
 export const users = pgTable("users", {
