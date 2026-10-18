@@ -104,7 +104,6 @@ function TaskActivity({ task, clock, agent }: { task: Task; clock: Clock; agent:
         comments={comments}
         setComments={setComments}
         loadFailed={failed}
-        toAgent={agent && run != null && task.status !== "done"}
         onAdded={() => void reload()}
       />
     </>
