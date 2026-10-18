@@ -7,6 +7,8 @@
 #   curl -fsSL https://claude.ai/install.sh | bash      # Claude Code, kept on the volume
 #   claude auth login                                    # your own Claude account
 #   openclaw models auth login --provider anthropic --method cli --set-default
+#   openclaw config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli
+#   openclaw models set anthropic/claude-sonnet-5-5      # the agent runs on Sonnet 5.5
 set -e
 HOME=/data/openclaw
 # `docker exec` hands every shell the container's whole environment, DATABASE_URL
