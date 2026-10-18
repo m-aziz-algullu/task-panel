@@ -78,11 +78,10 @@ describe("process environments", () => {
   });
 
   it("tells the app where the Gateway is", () => {
-    expect(appEnv(base, { gatewayToken: "gw", appPort: 3000 })).toMatchObject({
+    expect(appEnv(base, { gatewayToken: "gw" })).toMatchObject({
       DATABASE_URL: "postgres://secret",
       OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:18789",
       OPENCLAW_GATEWAY_TOKEN: "gw",
-      TASKPANEL_INTERNAL_URL: "http://127.0.0.1:3000",
     });
   });
 });

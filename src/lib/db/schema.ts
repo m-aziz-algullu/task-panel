@@ -64,8 +64,6 @@ export const agentRuns = pgTable("agent_runs", {
   limitMode: text("limit_mode").notNull(),
   sessionKey: text("session_key").notNull().unique(),
   openclawRunId: text("openclaw_run_id"),
-  /** SHA-256 of the run's API token, like sessions.id. */
-  tokenHash: text("token_hash").unique(),
   tokensUsed: integer("tokens_used").notNull().default(0),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

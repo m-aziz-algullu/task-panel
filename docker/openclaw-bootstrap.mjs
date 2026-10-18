@@ -114,12 +114,11 @@ export function gatewayEnv(base, { home, gatewayToken }) {
   };
 }
 
-/** What the Next.js server needs to reach the Gateway and to tell the agent where it lives. */
-export function appEnv(base, { gatewayToken, port = GATEWAY_PORT, appPort }) {
+/** What the Next.js server needs to reach the Gateway. */
+export function appEnv(base, { gatewayToken, port = GATEWAY_PORT }) {
   return {
     ...base,
     OPENCLAW_GATEWAY_URL: `ws://127.0.0.1:${port}`,
     OPENCLAW_GATEWAY_TOKEN: gatewayToken,
-    TASKPANEL_INTERNAL_URL: `http://127.0.0.1:${appPort}`,
   };
 }

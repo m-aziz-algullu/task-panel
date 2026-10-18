@@ -128,4 +128,11 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `ALTER TABLE task_comments ADD COLUMN run_id integer REFERENCES agent_runs (id) ON DELETE SET NULL`,
     ],
   },
+  {
+    version: 8,
+    statements: [
+      // Runs no longer hand the agent an API token: its final message is the report.
+      `ALTER TABLE agent_runs DROP COLUMN token_hash`,
+    ],
+  },
 ];

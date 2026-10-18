@@ -127,7 +127,6 @@ const en = {
     systemTimedOut: "Time limit ({minutes} min) reached; the run was stopped.",
     systemAborted: "The run was stopped.",
     systemFailed: "The agent stopped with an error: {error}",
-    systemNoReport: "The agent ended without a report. Its last message:\n\n{output}",
     systemNoReportEmpty: "The agent ended without a report or a final message.",
   },
   agentPage: {

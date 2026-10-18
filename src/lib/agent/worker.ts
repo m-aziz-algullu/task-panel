@@ -7,7 +7,7 @@ import { listComments, loadTask } from "../data";
 import { GatewayUnavailableError, gatewayRequest } from "../openclaw/client";
 import { gatewayConnection } from "../openclaw/connection";
 import { moveTaskTo } from "../task-status";
-import { buildRunPrompt } from "./prompt";
+import { buildRunPrompt, parseRunReport } from "./prompt";
 import {
   claimNextRun,
   finalizeRun,
@@ -27,7 +27,6 @@ const TICK_MS = 5_000;
 const WAIT_SLICE_MS = 10_000;
 /** OpenClaw's own turn timeout gets a little head start before Task Panel steps in. */
 const DEADLINE_GRACE_MS = 60_000;
-const MAX_OUTPUT_CHARS = 4_000;
 
 type WaitResult = { status?: string; error?: unknown; message?: string };
 
@@ -65,7 +64,7 @@ export async function abortSession(run: RunRow): Promise<void> {
   }
 }
 
-/** The agent's last reply, for a run that ended without calling finish. */
+/** The agent's final message: its report on the task. */
 async function finalReply(run: RunRow, result: unknown): Promise<string | null> {
   if (!run.openclawRunId) return null;
   try {
@@ -76,9 +75,7 @@ async function finalReply(run: RunRow, result: unknown): Promise<string | null> 
       request: (method, params) => gatewayRequest(method, params),
       signal: AbortSignal.timeout(30_000),
     });
-    const text = recovered.outputText?.trim();
-    if (!text) return null;
-    return text.length > MAX_OUTPUT_CHARS ? `${text.slice(0, MAX_OUTPUT_CHARS)}…` : text;
+    return recovered.outputText?.trim() || null;
   } catch {
     return null;
   }
@@ -117,7 +114,7 @@ class AgentWorker {
       while (free-- > 0) {
         const claimed = await claimNextRun(db);
         if (!claimed) break;
-        this.track(claimed.row.id, () => this.dispatch(db, claimed.row, claimed.token));
+        this.track(claimed.id, () => this.dispatch(db, claimed));
       }
     } catch (error) {
       console.error("[agent] Worker tick failed:", error);
@@ -136,7 +133,7 @@ class AgentWorker {
       });
   }
 
-  private async dispatch(db: Db, run: RunRow, token: string) {
+  private async dispatch(db: Db, run: RunRow) {
     const connection = gatewayConnection();
     const task = await loadTask(db, run.taskId);
     if (!task || !connection) {
@@ -155,8 +152,6 @@ class AgentWorker {
       tagNames: tagRows.map((tag) => tag.name),
       comments,
       instructions: settings.instructions,
-      apiBase: connection.appUrl,
-      runToken: token,
       tokenLimit: run.tokenLimit,
       limitMode: run.limitMode as "soft" | "hard",
       timeoutSeconds: run.timeoutSeconds,
@@ -216,7 +211,7 @@ class AgentWorker {
     let tokensUsed = run.tokensUsed;
 
     while (true) {
-      // The agent's finish call or the stop button ended it.
+      // The stop button (or removing the agent tag) ended it.
       if ((await runStatus(db, run.id)) !== "running") return;
 
       const used = await sessionTokens(run.sessionKey);
@@ -298,22 +293,28 @@ class AgentWorker {
         });
         return;
       }
-      // The turn is over. If the agent never called finish, its last reply goes
-      // into the task instead, so every run leaves a comment behind.
+      // The turn is over: the agent's final message is its report. Without one the
+      // app says so, so every run leaves a comment behind.
       if ((await runStatus(db, run.id)) !== "running") return;
-      const output = await finalReply(run, result);
-      await finalizeRun(db, run, {
-        status: "blocked",
-        error: "ended without calling finish",
-        tokensUsed,
-        moveTo: settings.statusOnBlocked,
-        comment: {
-          author: "system",
-          body: output
-            ? systemCommentBody("agentRun.systemNoReport", { output })
-            : systemCommentBody("agentRun.systemNoReportEmpty"),
-        },
-      });
+      const report = parseRunReport(await finalReply(run, result));
+      await finalizeRun(
+        db,
+        run,
+        report
+          ? {
+              status: report.outcome,
+              tokensUsed,
+              moveTo: report.outcome === "done" ? settings.statusOnDone : settings.statusOnBlocked,
+              comment: { author: "agent", body: report.body },
+            }
+          : {
+              status: "blocked",
+              error: "ended without a report",
+              tokensUsed,
+              moveTo: settings.statusOnBlocked,
+              comment: { author: "system", body: systemCommentBody("agentRun.systemNoReportEmpty") },
+            },
+      );
       return;
     }
   }
