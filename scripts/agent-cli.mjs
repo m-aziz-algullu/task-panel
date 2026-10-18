@@ -3,6 +3,8 @@
 // port), e.g. to connect Claude Code:
 //
 //   npm run agent:cli -- models auth login --provider anthropic --method cli --set-default
+//   npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli
+//   npm run agent:cli -- models set anthropic/claude-sonnet-5-5
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";

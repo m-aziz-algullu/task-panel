@@ -64,7 +64,7 @@ npm run typecheck
 npm test
 ```
 
-**Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18799` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz. Claude aboneliğini kullanması için bilgisayarında Claude Code'a giriş yap (`claude auth login`) ve `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default` çalıştır; işe yarayıp yaramadığını **Ajan** sayfası gösterir.
+**Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18799` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz. Claude aboneliğini kullanması için bilgisayarında Claude Code'a giriş yap (`claude auth login`) ve `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default` çalıştır, ardından `npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli` ve `npm run agent:cli -- models set anthropic/claude-sonnet-5-5` ile Sonnet 5.5'i seç; işe yarayıp yaramadığını **Ajan** sayfası gösterir.
 
 ## Kendi sunucuna kurulum
 
@@ -110,6 +110,8 @@ docker exec -it -u node <container> /srv/docker/agent-shell.sh
 curl -fsSL https://claude.ai/install.sh | bash     # Claude Code'u /data altına kurar
 claude auth login                                   # Anthropic'in kendi giriş akışını açar
 openclaw models auth login --provider anthropic --method cli --set-default
+openclaw config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli
+openclaw models set anthropic/claude-sonnet-5-5    # ajan Sonnet 5.5 ile çalışır
 ```
 
 Herkes kendi hesabıyla giriş yapar ve giriş her zaman Anthropic'in akışında tamamlanır; Task Panel Claude kimlik bilgilerini hiç görmez ve saklamaz. Abonelik limitleri olağan bireysel kullanıma göre belirlenir; Anthropic'in [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına bak. Yoğun ve sürekli kullanım için bunun yerine `ANTHROPIC_API_KEY` ver.

@@ -64,7 +64,7 @@ npm run typecheck
 npm test
 ```
 
-**Bundled OpenClaw agent (optional):** run `npm run agent:dev` in a second terminal. It installs the OpenClaw Gateway into `./.data/openclaw-runtime` once and starts it on `127.0.0.1:18799` with `./.data/openclaw` as its home, so your own `~/.openclaw` is never touched. To let it use your Claude subscription, sign in to Claude Code on your computer (`claude auth login`) and run `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default`; the **Agent** page shows whether it worked.
+**Bundled OpenClaw agent (optional):** run `npm run agent:dev` in a second terminal. It installs the OpenClaw Gateway into `./.data/openclaw-runtime` once and starts it on `127.0.0.1:18799` with `./.data/openclaw` as its home, so your own `~/.openclaw` is never touched. To let it use your Claude subscription, sign in to Claude Code on your computer (`claude auth login`) and run `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default`, then select Sonnet 5.5 with `npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli` and `npm run agent:cli -- models set anthropic/claude-sonnet-5-5`; the **Agent** page shows whether it worked.
 
 ## Self-hosting
 
@@ -110,6 +110,8 @@ docker exec -it -u node <container> /srv/docker/agent-shell.sh
 curl -fsSL https://claude.ai/install.sh | bash     # installs Claude Code under /data
 claude auth login                                   # opens Anthropic's own sign-in
 openclaw models auth login --provider anthropic --method cli --set-default
+openclaw config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli
+openclaw models set anthropic/claude-sonnet-5-5    # the agent runs on Sonnet 5.5
 ```
 
 Each person signs in with their own account, and the sign-in always completes in Anthropic's flow; Task Panel never sees or stores Claude credentials. Subscription limits assume ordinary individual use; see Anthropic's [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) page. For heavy, always-on use, set `ANTHROPIC_API_KEY` instead.

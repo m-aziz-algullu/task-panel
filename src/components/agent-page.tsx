@@ -7,6 +7,8 @@ import type { MessageKey } from "@/i18n/translate";
 import type { ClaudeAuth, ClaudeStatus } from "@/lib/agent/claude-auth";
 
 const TERMS_URL = "https://code.claude.com/docs/en/legal-and-compliance";
+/** The model the agent runs on: Sonnet 5.5, through the Claude Code CLI. */
+const AGENT_MODEL = "anthropic/claude-sonnet-5-5";
 
 export function claudeAuthLabel(auth: ClaudeAuth): MessageKey {
   switch (auth.state) {
@@ -115,9 +117,13 @@ export function AgentPage({
 
   const { gateway, auth, cliFound } = status;
   const connected = auth.state === "connected";
-  const linkCommand = container
-    ? "openclaw models auth login --provider anthropic --method cli --set-default"
-    : "npm run agent:cli -- models auth login --provider anthropic --method cli --set-default";
+  const openclaw = container ? "openclaw" : "npm run agent:cli --";
+  // The login picks OpenClaw's default model; Task Panel runs on Sonnet through the same CLI.
+  const linkCommand = [
+    `${openclaw} models auth login --provider anthropic --method cli --set-default`,
+    `${openclaw} config set agents.defaults.models.${AGENT_MODEL}.agentRuntime.id claude-cli`,
+    `${openclaw} models set ${AGENT_MODEL}`,
+  ].join("\n");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
