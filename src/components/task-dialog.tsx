@@ -12,13 +12,17 @@ import { ColorPicker, randomPresetColor } from "./color-picker";
 import { Modal } from "./modal";
 import { RichTextEditor } from "./rich-text/editor";
 import { TagPill } from "./tag-pill";
+import { AgentRunPanel } from "./agent-run-panel";
 import { TaskComments } from "./task-comments";
+import { useTaskActivity } from "./use-task-activity";
 
 type TaskDialogProps = {
   task?: Task;
   defaultStatus?: Status;
   tags: Tag[];
   clock: Clock;
+  /** The bundled OpenClaw agent is set up, so tasks can be handed to it. */
+  agent?: boolean;
   onClose: () => void;
 };
 
@@ -88,7 +92,24 @@ function InlineTagCreator({ onCreated }: { onCreated: (tag: Tag) => void }) {
   );
 }
 
-export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClose }: TaskDialogProps) {
+/** Comments and the agent panel of a saved task; they share one polled feed. */
+function TaskActivity({ task, clock, agent }: { task: Task; clock: Clock; agent: boolean }) {
+  const { comments, setComments, run, failed, reload } = useTaskActivity(task.id);
+  return (
+    <>
+      {agent && <AgentRunPanel taskId={task.id} run={run} onChange={() => void reload()} />}
+      <TaskComments
+        taskId={task.id}
+        timeZone={clock.timeZone}
+        comments={comments}
+        setComments={setComments}
+        loadFailed={failed}
+      />
+    </>
+  );
+}
+
+export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent = false, onClose }: TaskDialogProps) {
   const [form, setForm] = useState<TaskInput>(() => ({
     title: task?.title ?? "",
     // Tasks saved before the editor existed only have plain text.
@@ -175,7 +196,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, onClo
                 )}
               </dl>
             )}
-            {task && <TaskComments taskId={task.id} timeZone={clock.timeZone} />}
+            {task && <TaskActivity task={task} clock={clock} agent={agent} />}
           </div>
 
           <div className="flex flex-col gap-5">

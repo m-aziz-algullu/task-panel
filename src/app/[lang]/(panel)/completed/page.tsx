@@ -11,8 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 async function CompletedData() {
-  const { tasks, tags, clock } = await getCompletedData();
-  return <CompletedView tasks={tasks} tags={tags} clock={clock} />;
+  const { tasks, tags, clock, agent } = await getCompletedData();
+  return <CompletedView tasks={tasks} tags={tags} clock={clock} agent={agent} />;
 }
 
 export default async function CompletedPage() {

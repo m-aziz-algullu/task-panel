@@ -14,7 +14,13 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   // PGlite ships WASM and data files that must be loaded from node_modules as-is.
-  serverExternalPackages: ["@electric-sql/pglite"],
+  // The OpenClaw client resolves `ws` internals at runtime, which bundling breaks.
+  serverExternalPackages: ["@electric-sql/pglite", "@openclaw/gateway-client", "@openclaw/gateway-protocol", "ws"],
+  // …and because it builds those paths at runtime, file tracing can't see them:
+  // ship the packages whole in the standalone output.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/ws/**/*", "./node_modules/@openclaw/**/*", "./node_modules/ipaddr.js/**/*"],
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

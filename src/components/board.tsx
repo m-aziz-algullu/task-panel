@@ -136,7 +136,17 @@ function Column({
   );
 }
 
-export function Board({ tasks: serverTasks, tags, clock }: { tasks: Task[]; tags: Tag[]; clock: Clock }) {
+export function Board({
+  tasks: serverTasks,
+  tags,
+  clock,
+  agent,
+}: {
+  tasks: Task[];
+  tags: Tag[];
+  clock: Clock;
+  agent: boolean;
+}) {
   // Local copy for optimistic drag-and-drop; reset whenever the server sends fresh data.
   const [tasks, setTasks] = useState(serverTasks);
   const [syncedFrom, setSyncedFrom] = useState(serverTasks);
@@ -370,10 +380,23 @@ export function Board({ tasks: serverTasks, tags, clock }: { tasks: Task[]; tags
       )}
 
       {dialog?.kind === "create" && (
-        <TaskDialog defaultStatus={dialog.status} tags={tags} clock={clock} onClose={() => setDialog(null)} />
+        <TaskDialog
+          defaultStatus={dialog.status}
+          tags={tags}
+          clock={clock}
+          agent={agent}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog?.kind === "edit" && editingTask && (
-        <TaskDialog key={editingTask.id} task={editingTask} tags={tags} clock={clock} onClose={() => setDialog(null)} />
+        <TaskDialog
+          key={editingTask.id}
+          task={editingTask}
+          tags={tags}
+          clock={clock}
+          agent={agent}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog?.kind === "tags" && <TagManager tags={tags} onClose={() => setDialog(null)} />}
       {pendingDone && (

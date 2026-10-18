@@ -14,5 +14,15 @@ if (process.env.NEXT_PHASE !== "phase-production-build") {
   getDb()
     .then(() => console.log("[db] Connected, migrations up to date."))
     .then(logSetupCode)
+    .then(async () => {
+      // The bundled OpenClaw agent: connect to the Gateway and start running queued tasks.
+      const { agentEnabled } = await import("@/lib/openclaw/connection");
+      if (!agentEnabled()) return;
+      const { warmGateway } = await import("@/lib/openclaw/client");
+      const { startAgentWorker } = await import("@/lib/agent/worker");
+      warmGateway();
+      startAgentWorker();
+      console.log("[agent] OpenClaw Gateway configured; agent worker started.");
+    })
     .catch((error) => console.error("[db] Could not connect to the database:", error));
 }

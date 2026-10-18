@@ -3,6 +3,7 @@
 services:
   app:
     build: .
+    # Without the agent (smaller image): build: { context: ., target: plain }
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -11,6 +12,11 @@ services:
       APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Istanbul}
       # Optional: your own setup code instead of the generated one.
       # SETUP_TOKEN: ${SETUP_TOKEN}
+    volumes:
+      # The bundled OpenClaw agent's memory, sessions, provider keys and skills.
+      - app-data:/data
+    # OpenClaw plus its browser needs room; 2 GB is a comfortable minimum.
+    mem_limit: 3g
     depends_on:
       db:
         condition: service_healthy
@@ -31,4 +37,5 @@ services:
       retries: 10
 
 volumes:
+  app-data:
   db-data:

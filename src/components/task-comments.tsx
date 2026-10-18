@@ -1,10 +1,11 @@
 "use client";
 
 import { Bot, Info, Trash2, User } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { addComment, deleteComment } from "@/app/actions";
 import { useI18n } from "@/i18n/client";
-import type { MessageKey } from "@/i18n/translate";
+import type { MessageKey, Translate, Vars } from "@/i18n/translate";
+import { parseSystemComment } from "@/lib/agent/system-comments";
 import { formatDateTime } from "@/lib/dates";
 import { MAX_COMMENT_LENGTH, type CommentAuthor, type TaskComment } from "@/lib/types";
 
@@ -14,27 +15,35 @@ const AUTHOR_META: Record<CommentAuthor, { label: MessageKey; icon: typeof User;
   system: { label: "comments.system", icon: Info, className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
 };
 
-export function TaskComments({ taskId, timeZone }: { taskId: number; timeZone: string }) {
+/** Plain text, or for Task Panel's own run reports the message in the viewer's language. */
+function commentText(comment: TaskComment, t: Translate, intlLocale: string): string {
+  // Only the app writes system comments; anyone else's text is shown as written.
+  const system = comment.author === "system" ? parseSystemComment(comment.body) : null;
+  if (!system) return comment.body;
+  const numbers = new Intl.NumberFormat(intlLocale);
+  const vars: Vars = Object.fromEntries(
+    Object.entries(system.vars ?? {}).map(([name, value]) => [
+      name,
+      typeof value === "number" ? numbers.format(value) : value,
+    ]),
+  );
+  return t(system.key, vars);
+}
+
+type TaskCommentsProps = {
+  taskId: number;
+  timeZone: string;
+  /** Loaded by the dialog together with the agent run (null while loading). */
+  comments: TaskComment[] | null;
+  setComments: Dispatch<SetStateAction<TaskComment[] | null>>;
+  loadFailed: boolean;
+};
+
+export function TaskComments({ taskId, timeZone, comments, setComments, loadFailed }: TaskCommentsProps) {
   const { t, intlLocale } = useI18n();
-  const [comments, setComments] = useState<TaskComment[] | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<MessageKey | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/tasks/${taskId}/comments`, { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
-      .then((data: { comments: TaskComment[] }) => {
-        if (!cancelled) setComments(data.comments);
-      })
-      .catch(() => {
-        if (!cancelled) setError("comments.loadError");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [taskId]);
 
   const submit = () => {
     if (!draft.trim()) return;
@@ -60,6 +69,7 @@ export function TaskComments({ taskId, timeZone }: { taskId: number; timeZone: s
     <section className="flex flex-col gap-3">
       <span className="text-xs font-semibold text-muted">{t("comments.title")}</span>
 
+      {loadFailed && !comments && <p className="text-xs text-red-600 dark:text-red-400">{t("comments.loadError")}</p>}
       {comments?.length === 0 && <p className="text-xs text-muted">{t("comments.empty")}</p>}
       {comments && comments.length > 0 && (
         <ol className="flex flex-col gap-2">
@@ -89,7 +99,7 @@ export function TaskComments({ taskId, timeZone }: { taskId: number; timeZone: s
                     <Trash2 className="size-3.5" />
                   </button>
                 </div>
-                <p className="text-sm break-words whitespace-pre-wrap">{comment.body}</p>
+                <p className="text-sm break-words whitespace-pre-wrap">{commentText(comment, t, intlLocale)}</p>
               </li>
             );
           })}

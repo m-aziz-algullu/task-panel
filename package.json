@@ -6,6 +6,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "agent:dev": "node scripts/agent-dev.mjs",
+    "agent:cli": "node scripts/agent-cli.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -17,6 +19,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@electric-sql/pglite": "^0.5.9",
+    "@openclaw/gateway-client": "2026.10.4",
+    "@openclaw/gateway-protocol": "2026.10.4",
     "@tiptap/core": "3.31.3",
     "@tiptap/extension-list": "3.31.3",
     "@tiptap/extension-table": "3.31.3",
