@@ -74,6 +74,7 @@ Varsayılan Docker imajı Task Panel'le aynı container'da gömülü bir [OpenCl
 - Gateway sadece container içinden (loopback) erişilir ve token'ını ilk açılışta kendisi üretir. Ona sadece model sağlayıcı anahtarları ve OpenClaw'ın kendi ayarları aktarılır; `DATABASE_URL` ve uygulamanın diğer değişkenleri Task Panel'de kalır.
 - Ajanın hafızası, oturumları, sağlayıcı anahtarları ve skill'leri `/data` altında tutulur. **`/data`'ya bir volume bağla**, yoksa her deploy'da sıfırlanır.
 - Bu imaj için en az 2 GB RAM öner.
+- Ajanın tarayıcısı (Chromium) `browser.noSandbox` ve `--disable-dev-shm-usage` ile çalışır: Chromium'un kendi sandbox'ı Docker'ın vermediği izinler ister, Docker'ın `/dev/shm`'i de sadece 64 MB. Tarayıcıyı container ve root olmayan kullanıcısı yine yalıtır. Chromium'un sandbox'ını korumak istersen container'a `--cap-add=SYS_ADMIN` (ya da buna izin veren bir seccomp profili) ver ve `TASKPANEL_BROWSER_SANDBOX=on` ayarla.
 - Ajan istemiyorsan daha küçük imaj için `docker build --target plain .` kullan, ya da imaj içinde `TASKPANEL_AGENT=off` ver.
 
 ### Docker Compose
@@ -123,6 +124,7 @@ Herkes kendi hesabıyla giriş yapar ve giriş her zaman Anthropic'in akışınd
 | `DATABASE_POOL_SIZE` | Hayır | En fazla Postgres bağlantısı. Varsayılan `5`. |
 | `PGLITE_DIR` | Hayır | Sadece geliştirme: gömülü veritabanının klasörü. |
 | `TASKPANEL_AGENT` | Hayır | `off` verilirse ajan imajı OpenClaw'ı başlatmaz. |
+| `TASKPANEL_BROWSER_SANDBOX` | Hayır | `on` verilirse ajanın tarayıcısı Chromium'un kendi sandbox'ıyla çalışır; container'a `SYS_ADMIN` ya da uygun bir seccomp profili gerekir. |
 | `OPENCLAW_GATEWAY_TOKEN` | Hayır | Gateway token'ını kendin sabitlemek istersen. Verilmezse üretilip `/data/secrets` altında saklanır. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | Hayır | Model sağlayıcı anahtarları, OpenClaw'a aktarılır. |
 

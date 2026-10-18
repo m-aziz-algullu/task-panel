@@ -74,6 +74,7 @@ The default Docker image also runs a bundled [OpenClaw](https://openclaw.ai) Gat
 - The Gateway is reachable only from inside the container (loopback) and generates its own token on first start. Only model provider keys and OpenClaw's own settings are passed on to it; `DATABASE_URL` and the app's other variables stay with Task Panel.
 - The agent's memory, sessions, provider keys and skills live under `/data`. **Mount a volume at `/data`**, or they are reset on every deploy.
 - Plan for at least 2 GB of RAM for this image.
+- The agent's browser (Chromium) runs with `browser.noSandbox` and `--disable-dev-shm-usage`: Chromium's own sandbox needs privileges Docker doesn't grant, and Docker's `/dev/shm` is only 64 MB. The container and its unprivileged user still isolate it. To keep Chromium's sandbox instead, give the container `--cap-add=SYS_ADMIN` (or a seccomp profile that allows it) and set `TASKPANEL_BROWSER_SANDBOX=on`.
 - If you don't want the agent, build the smaller image with `docker build --target plain .`, or set `TASKPANEL_AGENT=off`.
 
 ### Docker Compose
@@ -123,6 +124,7 @@ Each person signs in with their own account, and the sign-in always completes in
 | `DATABASE_POOL_SIZE` | No | Max Postgres connections. Default `5`. |
 | `PGLITE_DIR` | No | Development only: where the embedded database is stored. |
 | `TASKPANEL_AGENT` | No | `off` keeps the agent image from starting OpenClaw. |
+| `TASKPANEL_BROWSER_SANDBOX` | No | `on` keeps Chromium's own sandbox for the agent's browser; the container then needs `SYS_ADMIN` or a matching seccomp profile. |
 | `OPENCLAW_GATEWAY_TOKEN` | No | Pin the Gateway token yourself. If unset it is generated and kept in `/data/secrets`. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | No | Model provider keys, passed on to OpenClaw. |
 
