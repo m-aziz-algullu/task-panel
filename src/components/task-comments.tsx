@@ -8,6 +8,7 @@ import type { MessageKey, Translate, Vars } from "@/i18n/translate";
 import { parseSystemComment } from "@/lib/agent/system-comments";
 import { formatDateTime } from "@/lib/dates";
 import { MAX_COMMENT_LENGTH, type CommentAuthor, type TaskComment } from "@/lib/types";
+import { Markdown } from "./markdown";
 
 const AUTHOR_META: Record<CommentAuthor, { label: MessageKey; icon: typeof User; className: string }> = {
   user: { label: "comments.you", icon: User, className: "bg-surface-2 text-fg" },
@@ -104,7 +105,11 @@ export function TaskComments({ taskId, timeZone, comments, setComments, loadFail
                     <Trash2 className="size-3.5" />
                   </button>
                 </div>
-                <p className="text-sm break-words whitespace-pre-wrap">{commentText(comment, t, intlLocale)}</p>
+                {comment.author === "agent" ? (
+                  <Markdown>{comment.body}</Markdown>
+                ) : (
+                  <p className="text-sm break-words whitespace-pre-wrap">{commentText(comment, t, intlLocale)}</p>
+                )}
               </li>
             );
           })}
