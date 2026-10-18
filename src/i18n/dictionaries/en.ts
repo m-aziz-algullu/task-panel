@@ -105,6 +105,8 @@ const en = {
     collapse: "Collapse day",
     expand: "Expand day",
     noneInRange: "No tasks completed in this range.",
+    noneOnDay: "Nothing completed on this day",
+    noMatchOnDay: "No tasks on this day match the filter",
     last30: "Last 30 days",
     thisMonth: "This month",
     prevMonth: "Previous month",

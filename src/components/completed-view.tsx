@@ -4,7 +4,7 @@ import { CheckCheck, ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import type { Translate } from "@/i18n/translate";
-import { addDays, formatLongDay } from "@/lib/dates";
+import { addDays, daysBetweenDesc, formatLongDay } from "@/lib/dates";
 import type { Clock, Tag, Task } from "@/lib/types";
 import { DateRangePicker } from "./date-range-picker";
 import { EMPTY_FILTERS, FilterBar, matchesFilters, type Filters } from "./filters";
@@ -47,15 +47,24 @@ export function CompletedView({ tasks, tags, clock }: { tasks: Task[]; tags: Tag
     [tasks, rangeFrom, rangeTo],
   );
 
-  // Tasks arrive newest first, so groups come out newest day first.
-  const groups = useMemo(() => {
+  // Every day of the range gets a group, newest first, so days with nothing
+  // completed still show up instead of silently disappearing.
+  const { groups, activeDays } = useMemo(() => {
     const byDay = new Map<string, Task[]>();
+    const activeDays = new Set<string>();
     for (const task of rangeTasks) {
-      if (!task.completedDay || !matchesFilters(task, filters, intlLocale)) continue;
+      if (!task.completedDay) continue;
+      activeDays.add(task.completedDay);
+      if (!matchesFilters(task, filters, intlLocale)) continue;
       byDay.set(task.completedDay, [...(byDay.get(task.completedDay) ?? []), task]);
     }
-    return [...byDay.entries()];
-  }, [rangeTasks, filters, intlLocale]);
+    if (tasks.length === 0) return { groups: [], activeDays };
+    const end = !rangeTo || rangeTo > clock.today ? clock.today : rangeTo;
+    // With only an end day picked, start from the earliest completion.
+    const start = rangeFrom || [...activeDays].reduce((min, day) => (day < min ? day : min), end);
+    const groups = daysBetweenDesc(start, end).map((day) => [day, byDay.get(day) ?? []] as const);
+    return { groups, activeDays };
+  }, [tasks.length, rangeTasks, rangeFrom, rangeTo, clock.today, filters, intlLocale]);
 
   const openTask = openId == null ? undefined : tasks.find((task) => task.id === openId);
   const totalPoints = rangeTasks.reduce((sum, task) => sum + (task.storyPoints ?? 0), 0);
@@ -101,6 +110,22 @@ export function CompletedView({ tasks, tags, clock }: { tasks: Task[]; tags: Tag
       {groups.map(([day, dayTasks]) => {
         const badge = dayBadge(day, clock.today, t);
         const points = dayTasks.reduce((sum, task) => sum + (task.storyPoints ?? 0), 0);
+        if (dayTasks.length === 0) {
+          return (
+            <section key={day}>
+              <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border pb-2">
+                <span className="size-7" aria-hidden />
+                <h2 className="text-base font-semibold text-muted">{formatLongDay(day, intlLocale)}</h2>
+                {badge && (
+                  <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">{badge}</span>
+                )}
+                <span className="text-sm text-muted italic">
+                  {activeDays.has(day) ? t("completed.noMatchOnDay") : t("completed.noneOnDay")}
+                </span>
+              </header>
+            </section>
+          );
+        }
         const isCollapsed = collapsed.has(day);
         const toggle = () =>
           setCollapsed((current) => {
