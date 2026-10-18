@@ -24,12 +24,31 @@ export type AuthStatus = {
   }[];
 };
 
-const CLAUDE_PROVIDERS = new Set(["anthropic", "claude-cli"]);
+/** The part of OpenClaw's config (`agents.defaults`) that says how models run. */
+export type AgentDefaults = {
+  model?: string | { primary?: string } | null;
+  models?: Record<string, { agentRuntime?: { id?: string } | null } | null> | null;
+};
 
-/** Signed in (and how), expired, or missing, from `models.authStatus`. */
-export function claudeAuthFrom(status: AuthStatus | null): ClaudeAuth {
-  if (!status) return { state: "unknown" };
-  const providers = (status.providers ?? []).filter(
+const CLAUDE_PROVIDERS = new Set(["anthropic", "claude-cli"]);
+const CLAUDE_CLI_RUNTIME = "claude-cli";
+
+/**
+ * Models OpenClaw runs through the local Claude Code CLI. That is how
+ * `openclaw models auth login --provider anthropic --method cli` connects a
+ * subscription: it marks the Anthropic models with the CLI runtime instead of
+ * saving an auth profile, so `models.authStatus` alone doesn't show it.
+ */
+export function claudeCliModels(defaults: AgentDefaults | null | undefined): string[] {
+  return Object.entries(defaults?.models ?? {})
+    .filter(([, entry]) => entry?.agentRuntime?.id === CLAUDE_CLI_RUNTIME)
+    .map(([ref]) => ref);
+}
+
+/** Signed in (and how), expired, or missing, from `models.authStatus` and the model config. */
+export function claudeAuthFrom(status: AuthStatus | null, defaults?: AgentDefaults | null): ClaudeAuth {
+  if (!status && !defaults) return { state: "unknown" };
+  const providers = (status?.providers ?? []).filter(
     (p) => CLAUDE_PROVIDERS.has(p.provider) || CLAUDE_PROVIDERS.has(p.authProvider ?? ""),
   );
   const usable = providers.find((p) => p.status === "ok" || p.status === "expiring" || p.status === "static");
@@ -43,7 +62,8 @@ export function claudeAuthFrom(status: AuthStatus | null): ClaudeAuth {
       email: signedIn?.email ?? null,
     };
   }
+  if (claudeCliModels(defaults).length > 0) return { state: "connected", method: "subscription", email: null };
   if (providers.some((p) => p.status === "expired")) return { state: "expired" };
-  return { state: "missing" };
+  return status ? { state: "missing" } : { state: "unknown" };
 }
 

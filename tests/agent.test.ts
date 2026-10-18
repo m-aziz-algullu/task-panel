@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SESSION_KEY_PREFIX as GATEWAY_PREFIX } from "../docker/openclaw-bootstrap.mjs";
-import { claudeAuthFrom } from "@/lib/agent/claude-auth";
+import { claudeAuthFrom, claudeCliModels } from "@/lib/agent/claude-auth";
 import { fromInsideContainer, isLoopback } from "@/lib/agent/loopback";
 import { buildRunPrompt, type PromptInput } from "@/lib/agent/prompt";
 import { DEFAULT_AGENT_SETTINGS, parseAgentSettings } from "@/lib/agent/settings-shape";
@@ -111,6 +111,19 @@ describe("claudeAuthFrom", () => {
       ],
     };
     expect(claudeAuthFrom(status)).toEqual({ state: "connected", method: "subscription", email: "me@example.com" });
+  });
+
+  it("recognises a subscription connected through the Claude Code CLI runtime", () => {
+    // What `openclaw models auth login --provider anthropic --method cli` leaves behind:
+    // no auth profile, the models marked with the CLI runtime instead.
+    const defaults = {
+      model: { primary: "anthropic/claude-opus-5-5" },
+      models: { "anthropic/claude-opus-5-5": { agentRuntime: { id: "claude-cli" } }, "openai/gpt-6": {} },
+    };
+    expect(claudeCliModels(defaults)).toEqual(["anthropic/claude-opus-5-5"]);
+    expect(claudeAuthFrom({ providers: [] }, defaults)).toEqual({ state: "connected", method: "subscription", email: null });
+    expect(claudeAuthFrom(null, defaults)).toEqual({ state: "connected", method: "subscription", email: null });
+    expect(claudeAuthFrom({ providers: [] }, { models: { "openai/gpt-6": {} } })).toEqual({ state: "missing" });
   });
 
   it("tells an API key and an expired sign-in apart", () => {
