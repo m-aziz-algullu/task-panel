@@ -184,7 +184,7 @@ export function AgentChat() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed right-4 bottom-4 z-40 inline-flex size-13 cursor-pointer items-center justify-center rounded-full bg-agent text-white shadow-lg shadow-agent/30 transition hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-agent"
+        className="fixed right-3 bottom-7 z-40 inline-flex size-13 cursor-pointer items-center justify-center rounded-full bg-agent text-white shadow-lg shadow-agent/30 transition hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-agent"
         aria-label={t("chat.open")}
         title={t("chat.open")}
       >
