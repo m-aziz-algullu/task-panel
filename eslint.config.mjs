@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local PGlite data and the bundled OpenClaw runtime/state from `npm run agent:dev`.
+    ".data/**",
   ]),
 ]);
 

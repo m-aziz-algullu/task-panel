@@ -49,7 +49,7 @@ Only someone who can read the server logs can create the account, so a stranger 
 
 ## Quick start (local development)
 
-Requires Node.js 22+.
+Requires Node.js 24+.
 
 ```bash
 npm install
@@ -64,9 +64,17 @@ npm run typecheck
 npm test
 ```
 
+**Bundled OpenClaw agent (optional):** run `npm run agent:dev` in a second terminal. It installs the OpenClaw Gateway into `./.data/openclaw-runtime` once and starts it on `127.0.0.1:18789` with `./.data/openclaw` as its home, so your own `~/.openclaw` is never touched.
+
 ## Self-hosting
 
 Production runs on **PostgreSQL only**: the server refuses to start without `DATABASE_URL`. Tables are created and migrated automatically on startup.
+
+The default Docker image also runs a bundled [OpenClaw](https://openclaw.ai) Gateway in the same container as Task Panel:
+- The Gateway is reachable only from inside the container (loopback) and generates its own tokens on first start.
+- The agent's memory, sessions, provider keys and skills live under `/data`. **Mount a volume at `/data`**, or they are reset on every deploy.
+- Plan for at least 2 GB of RAM for this image.
+- If you don't want the agent, build the smaller image with `docker build --target plain .`, or set `TASKPANEL_AGENT=off`.
 
 ### Docker Compose
 
@@ -75,7 +83,7 @@ POSTGRES_PASSWORD=choose-a-password docker compose up -d
 docker compose logs app   # the setup code is here
 ```
 
-Then open http://localhost:3000.
+Then open http://localhost:3000. The `app-data` volume is mounted at `/data`.
 
 ### Dokploy
 
@@ -86,10 +94,11 @@ Then open http://localhost:3000.
    DATABASE_URL=<internal connection URL from step 1>
    APP_TIMEZONE=Europe/Istanbul
    ```
-4. **Domain:** add one with **container port 3000** and HTTPS.
-5. **Deploy**, open **Logs**, copy the setup code, and open your domain to create the admin account.
+4. **Volume:** under *Advanced → Volumes → Volume Mount*, add a volume named `task-panel-data` mounted at `/data`.
+5. **Domain:** add one with **container port 3000** and HTTPS.
+6. **Deploy**, open **Logs**, copy the setup code, and open your domain to create the admin account.
 
-**Backups:** your data lives in the Postgres volume on the server. In Dokploy, add an S3 destination (AWS S3, Cloudflare R2, Backblaze B2, …) under *Settings → S3 Destinations*, then schedule backups in the database's **Backups** tab, e.g. daily at `0 3 * * *`.
+**Backups:** your tasks live in the Postgres volume on the server, the agent's data in the `task-panel-data` volume. In Dokploy, add an S3 destination (AWS S3, Cloudflare R2, Backblaze B2, …) under *Settings → S3 Destinations*, then schedule backups in the database's **Backups** tab, e.g. daily at `0 3 * * *`.
 
 ### Environment variables
 
@@ -100,6 +109,9 @@ Then open http://localhost:3000.
 | `SETUP_TOKEN` | No | Your own setup code. If unset, one is generated and printed in the logs. |
 | `DATABASE_POOL_SIZE` | No | Max Postgres connections. Default `5`. |
 | `PGLITE_DIR` | No | Development only: where the embedded database is stored. |
+| `TASKPANEL_AGENT` | No | `off` keeps the agent image from starting OpenClaw. |
+| `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_HOOKS_TOKEN` | No | Pin the tokens yourself. If unset they are generated and kept in `/data/secrets`. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | No | Model provider keys, passed on to OpenClaw. |
 
 Health check: `GET /api/health`.
 
@@ -114,6 +126,8 @@ src/app/[lang]/(panel)/        Board and Completed pages
 src/app/[lang]/(auth)/         Setup (first admin), sign-in, sign-out
 src/app/actions.ts             Server Actions for tasks, tags and moves
 src/app/api/health/            Health check
+docker/                        Container supervisor and bundled OpenClaw setup
+scripts/agent-dev.mjs          OpenClaw Gateway for development
 src/proxy.ts                   Locale redirects and session-cookie gate
 src/i18n/                      Dictionaries (en, tr) and helpers
 src/lib/db/                    Connection, schema, migrations

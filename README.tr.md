@@ -49,7 +49,7 @@ Hesabı sadece sunucu loglarını okuyabilen kişi oluşturabilir. Yani adresini
 
 ## Hızlı başlangıç (lokal geliştirme)
 
-Node.js 22+ gerekir.
+Node.js 24+ gerekir.
 
 ```bash
 npm install
@@ -64,9 +64,17 @@ npm run typecheck
 npm test
 ```
 
+**Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18789` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz.
+
 ## Kendi sunucuna kurulum
 
 Production **sadece PostgreSQL** ile çalışır: `DATABASE_URL` yoksa sunucu açılmaz. Tablolar açılışta otomatik oluşturulur ve güncellenir.
+
+Varsayılan Docker imajı Task Panel'le aynı container'da gömülü bir [OpenClaw](https://openclaw.ai) Gateway'i de çalıştırır:
+- Gateway sadece container içinden (loopback) erişilir ve token'larını ilk açılışta kendisi üretir.
+- Ajanın hafızası, oturumları, sağlayıcı anahtarları ve skill'leri `/data` altında tutulur. **`/data`'ya bir volume bağla**, yoksa her deploy'da sıfırlanır.
+- Bu imaj için en az 2 GB RAM öner.
+- Ajan istemiyorsan daha küçük imaj için `docker build --target plain .` kullan, ya da imaj içinde `TASKPANEL_AGENT=off` ver.
 
 ### Docker Compose
 
@@ -75,7 +83,7 @@ POSTGRES_PASSWORD=bir-sifre-sec docker compose up -d
 docker compose logs app   # kurulum kodu burada
 ```
 
-Sonra http://localhost:3000 adresini aç.
+Sonra http://localhost:3000 adresini aç. `app-data` volume'ü `/data`'ya bağlıdır.
 
 ### Dokploy
 
@@ -86,10 +94,11 @@ Sonra http://localhost:3000 adresini aç.
    DATABASE_URL=<1. adımdaki internal URL>
    APP_TIMEZONE=Europe/Istanbul
    ```
-4. **Domain:** **Container Port 3000** ile domain ekle, HTTPS'i aç.
-5. **Deploy** et, **Logs** sekmesinden kurulum kodunu kopyala ve domain'ini açıp yönetici hesabını oluştur.
+4. **Volume:** *Advanced → Volumes → Volume Mount* altında adı `task-panel-data`, mount yolu `/data` olan bir volume ekle.
+5. **Domain:** **Container Port 3000** ile domain ekle, HTTPS'i aç.
+6. **Deploy** et, **Logs** sekmesinden kurulum kodunu kopyala ve domain'ini açıp yönetici hesabını oluştur.
 
-**Yedekleme:** veriler sunucudaki Postgres volume'ünde durur. Dokploy'da *Settings → S3 Destinations* altında bir S3 hedefi ekle (AWS S3, Cloudflare R2, Backblaze B2 vb.), sonra veritabanının **Backups** sekmesinden zamanlanmış yedek kur (ör. her gün `0 3 * * *`).
+**Yedekleme:** task'lar sunucudaki Postgres volume'ünde, ajan verisi `task-panel-data` volume'ünde durur. Dokploy'da *Settings → S3 Destinations* altında bir S3 hedefi ekle (AWS S3, Cloudflare R2, Backblaze B2 vb.), sonra veritabanının **Backups** sekmesinden zamanlanmış yedek kur (ör. her gün `0 3 * * *`).
 
 ### Ortam değişkenleri
 
@@ -100,6 +109,9 @@ Sonra http://localhost:3000 adresini aç.
 | `SETUP_TOKEN` | Hayır | Kendi kurulum kodun. Verilmezse kod üretilip loglara yazılır. |
 | `DATABASE_POOL_SIZE` | Hayır | En fazla Postgres bağlantısı. Varsayılan `5`. |
 | `PGLITE_DIR` | Hayır | Sadece geliştirme: gömülü veritabanının klasörü. |
+| `TASKPANEL_AGENT` | Hayır | `off` verilirse ajan imajı OpenClaw'ı başlatmaz. |
+| `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_HOOKS_TOKEN` | Hayır | Token'ları kendin sabitlemek istersen. Verilmezse üretilip `/data/secrets` altında saklanır. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | Hayır | Model sağlayıcı anahtarları, OpenClaw'a aktarılır. |
 
 Sağlık kontrolü: `GET /api/health`.
 
@@ -114,6 +126,8 @@ src/app/[lang]/(panel)/        Pano ve Tamamlananlar sayfaları
 src/app/[lang]/(auth)/         Kurulum (ilk yönetici), giriş, çıkış
 src/app/actions.ts             Task, etiket ve taşıma Server Action'ları
 src/app/api/health/            Sağlık kontrolü
+docker/                        Container supervisor'ı ve gömülü OpenClaw kurulumu
+scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
 src/proxy.ts                   Dil yönlendirmesi ve oturum çerezi kontrolü
 src/i18n/                      Sözlükler (en, tr) ve yardımcılar
 src/lib/db/                    Bağlantı, şema, migration'lar
