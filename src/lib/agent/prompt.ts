@@ -48,7 +48,7 @@ function limitsSection({ tokenLimit, limitMode, timeoutSeconds }: Limits): strin
 export function buildRunPrompt(input: PromptInput): string {
   const { task } = input;
   const sections = [
-    `You are working on task #${task.id} from Task Panel, the user's personal kanban board. Do the task, then end with a report as described below.`,
+    `You are working on task #${task.id} from Task Panel, the user's personal kanban board. Do the task, then end with a report as described below. Use what your memory (USER.md, MEMORY.md) says about the user and their preferences.`,
     [
       "## Task",
       `Title: ${task.title}`,

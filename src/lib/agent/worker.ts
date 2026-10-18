@@ -1,6 +1,5 @@
 import "server-only";
 
-import { recoverTerminalReply } from "@openclaw/gateway-client";
 import { inArray } from "drizzle-orm";
 import { getDb, schema, type Db } from "../db";
 import { listComments, loadTask } from "../data";
@@ -10,6 +9,7 @@ import { moveTaskTo } from "../task-status";
 import type { LimitMode, RunStatus, Task } from "../types";
 import { continuesAfterRun, followUpInput, runTokens } from "./continuation";
 import { buildFollowUpPrompt, buildRunPrompt, parseRunReport } from "./prompt";
+import { errorText, turnReply } from "./reply";
 import {
   claimNextRun,
   enqueueRun,
@@ -43,14 +43,6 @@ class SessionMissingError extends Error {}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function errorText(value: unknown): string {
-  if (!value) return "unknown error";
-  if (typeof value === "string") return value;
-  if (value instanceof Error) return value.message;
-  if (typeof value === "object" && "message" in value) return String((value as { message: unknown }).message);
-  return JSON.stringify(value);
-}
-
 /** The OpenClaw session's token total so far; null before anything is recorded. */
 async function sessionTokens(sessionKey: string): Promise<number | null> {
   try {
@@ -77,20 +69,8 @@ export async function abortSession(run: RunRow): Promise<void> {
 }
 
 /** The agent's final message: its report on the task. */
-async function finalReply(run: RunRow, result: unknown): Promise<string | null> {
-  if (!run.openclawRunId) return null;
-  try {
-    const recovered = await recoverTerminalReply({
-      runId: run.openclawRunId,
-      scope: { sessionKey: run.sessionKey, ...(run.agentId ? { agentId: run.agentId } : {}) },
-      result,
-      request: (method, params) => gatewayRequest(method, params),
-      signal: AbortSignal.timeout(30_000),
-    });
-    return recovered.outputText?.trim() || null;
-  } catch {
-    return null;
-  }
+function finalReply(run: RunRow, result: unknown): Promise<string | null> {
+  return turnReply({ runId: run.openclawRunId, sessionKey: run.sessionKey, agentId: run.agentId, result });
 }
 
 function failure(reason: string) {
