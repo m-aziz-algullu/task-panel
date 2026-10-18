@@ -32,6 +32,7 @@ import { TagManager } from "./tag-manager";
 import { CARD_WIDTH, COLUMN_WIDTH } from "./card-size";
 import { TaskCard } from "./task-card";
 import { TaskDialog } from "./task-dialog";
+import { useAgentRefresh } from "./use-agent-refresh";
 import { useDayRollover } from "./use-day-rollover";
 
 type PendingMove = { movedId: number; from: Status; to: Status; order: number[] };
@@ -103,7 +104,7 @@ function Column({
   return (
     <section
       className={`flex max-h-full shrink-0 flex-col rounded-xl border transition-colors ${
-        highlighted ? "border-accent/70 bg-accent/5" : "border-transparent bg-surface-2"
+        highlighted ? "border-accent/70 bg-accent/5" : "border-border bg-surface-2"
       }`}
       style={{ width: COLUMN_WIDTH }}
       aria-label={meta.label}
@@ -167,6 +168,8 @@ export function Board({
   const dndId = useId();
 
   useDayRollover(clock.nextDayAt);
+  // Not mid-drag: a refresh resets the optimistic order.
+  useAgentRefresh(tasks.some((task) => task.agentRun != null) && activeId === null);
 
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
 

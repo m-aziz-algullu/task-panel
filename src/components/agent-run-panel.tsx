@@ -38,8 +38,8 @@ const PRESET_LABEL: Record<TokenPreset, MessageKey> = {
 };
 
 const RUN_STATUS_CLASS: Record<RunStatus, string> = {
-  queued: "bg-surface-2 text-fg",
-  running: "bg-accent/15 text-accent",
+  queued: "bg-agent/15 text-agent",
+  running: "bg-agent text-white dark:text-gray-950",
   done: "bg-green-500/15 text-green-700 dark:text-green-400",
   blocked: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   failed: "bg-red-500/15 text-red-700 dark:text-red-400",
@@ -90,7 +90,7 @@ function Choice<T extends string>({
           title={option.title}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
-          className={`btn px-2 py-1 text-xs ${value === option.value ? "bg-accent text-accent-fg" : "btn-ghost border border-border"}`}
+          className={`btn px-2 py-1 text-xs ${value === option.value ? "bg-agent text-white dark:text-gray-950" : "btn-ghost border border-border"}`}
         >
           {option.label}
         </button>
@@ -171,9 +171,13 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
   const connected = options?.status.state === "ready";
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-border p-3">
+    <section
+      className={`flex flex-col gap-3 rounded-lg border p-3 ${
+        active ? "border-agent bg-agent/5 ring-2 ring-agent/20" : "border-border"
+      }`}
+    >
       <div className="flex items-center gap-2">
-        <Bot className="size-4 text-accent" />
+        <Bot className="size-4 text-agent" />
         <span className="text-xs font-semibold">{t("agentRun.title")}</span>
         {run && active && <RunStatusBadge status={run.status} />}
       </div>
@@ -182,7 +186,7 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
         <div className="flex flex-col gap-2">
           <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
             <div
-              className="h-full rounded-full bg-accent transition-[width]"
+              className="h-full rounded-full bg-agent transition-[width]"
               style={{ width: `${Math.min(100, (run.tokensUsed / run.tokenLimit) * 100)}%` }}
             />
           </div>
@@ -335,7 +339,12 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
             />
           </label>
 
-          <button type="button" className="btn btn-primary" disabled={pending || !connected} onClick={give}>
+          <button
+            type="button"
+            className="btn bg-agent text-white hover:brightness-110 dark:text-gray-950"
+            disabled={pending || !connected}
+            onClick={give}
+          >
             <Bot className="size-4" /> {t("agentRun.give")}
           </button>
         </div>

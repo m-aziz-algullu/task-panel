@@ -1,4 +1,4 @@
-import { Bot, CalendarDays } from "lucide-react";
+import { Bot, CalendarDays, Clock, LoaderCircle } from "lucide-react";
 import { useI18n } from "@/i18n/client";
 import { formatDay } from "@/lib/dates";
 import type { Tag, Task } from "@/lib/types";
@@ -11,18 +11,44 @@ type TaskCardProps = {
   lifted?: boolean;
 };
 
+/** Across the card's top while the agent has the task, so it stands out on a busy board. */
+function AgentBanner({ status }: { status: "queued" | "running" }) {
+  const { t } = useI18n();
+  const running = status === "running";
+  const Icon = running ? LoaderCircle : Clock;
+  return (
+    <div
+      className={`-mx-3 -mt-3 mb-2 flex items-center gap-1.5 rounded-t-[7px] px-3 py-1.5 text-xs font-semibold ${
+        running ? "bg-agent text-white dark:text-gray-950" : "bg-agent/15 text-agent"
+      }`}
+    >
+      <Bot className="size-3.5" />
+      <span>{t(running ? "agentRun.cardRunning" : "agentRun.cardQueued")}</span>
+      <Icon className={`ml-auto size-3.5 ${running ? "animate-spin" : ""}`} aria-hidden />
+    </div>
+  );
+}
+
 export function TaskCard({ task, tagsById, today, lifted }: TaskCardProps) {
   const taskTags = task.tagIds.map((id) => tagsById.get(id)).filter((tag): tag is Tag => Boolean(tag));
   const overdue = task.status !== "done" && task.day < today;
   const { t, intlLocale } = useI18n();
   const dayLabels = { today: t("days.today"), tomorrow: t("days.tomorrow"), yesterday: t("days.yesterday") };
+  const agent = task.agentRun === "queued" || task.agentRun === "running" ? task.agentRun : null;
 
   return (
     <div
       className={`rounded-lg border bg-surface p-3 text-left transition-colors ${
-        lifted ? "rotate-1 border-accent shadow-xl" : "border-border shadow-sm hover:border-accent/60"
+        lifted
+          ? "rotate-1 border-accent shadow-xl"
+          : agent === "running"
+            ? "border-agent shadow-md ring-2 ring-agent/30"
+            : agent === "queued"
+              ? "border-agent/60 border-dashed shadow-sm"
+              : "border-border shadow-sm hover:border-accent/60"
       }`}
     >
+      {agent && !lifted && <AgentBanner status={agent} />}
       {taskTags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
           {taskTags.map((tag) => (
@@ -42,14 +68,6 @@ export function TaskCard({ task, tagsById, today, lifted }: TaskCardProps) {
           <CalendarDays className="size-3.5" />
           {formatDay(task.day, today, dayLabels, intlLocale)}
         </span>
-        {task.agentRun && (
-          <span
-            className={`inline-flex items-center ${task.agentRun === "running" ? "animate-pulse text-accent" : ""}`}
-            title={t(task.agentRun === "running" ? "agentRun.cardRunning" : "agentRun.cardQueued")}
-          >
-            <Bot className="size-3.5" />
-          </span>
-        )}
         <span className="ml-auto font-mono text-[11px]">#{task.id}</span>
         {task.storyPoints != null && (
           <span

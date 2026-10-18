@@ -122,7 +122,7 @@ const en = {
     statusBudgetExceeded: "Budget spent",
     statusAborted: "Stopped",
     cardQueued: "Queued for the agent",
-    cardRunning: "The agent is working on it",
+    cardRunning: "Agent at work",
     systemBudget: "Token budget spent ({used} / {limit}); the run was stopped.",
     systemTimedOut: "Time limit ({minutes} min) reached; the run was stopped.",
     systemAborted: "The run was stopped.",
