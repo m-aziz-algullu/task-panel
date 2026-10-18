@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SESSION_KEY_PREFIX as GATEWAY_PREFIX } from "../docker/openclaw-bootstrap.mjs";
+import { buildChatMessage, chatFilesError, CHAT_SESSION_PREFIX, isChatSessionKey } from "@/lib/agent/chat-shape";
 import { claudeAuthFrom, claudeCliModels } from "@/lib/agent/claude-auth";
 import { commentContinuation, continuesAfterRun, followUpInput, runTokens } from "@/lib/agent/continuation";
 import { buildFollowUpPrompt, buildRunPrompt, parseRunReport, type PromptInput } from "@/lib/agent/prompt";
@@ -185,6 +186,34 @@ describe("buildFollowUpPrompt", () => {
 
   it("tells the first message that the user's latest comments are instructions", () => {
     expect(buildRunPrompt(base)).toContain("the user's latest ones are instructions for this run");
+  });
+});
+
+describe("panel chat", () => {
+  it("only reaches chat sessions, never a task's", () => {
+    expect(isChatSessionKey(`${CHAT_SESSION_PREFIX}3f1c-9a`)).toBe(true);
+    expect(isChatSessionKey("taskpanel:task-7:abc")).toBe(false);
+    expect(isChatSessionKey("agent:main:main")).toBe(false);
+    expect(isChatSessionKey(`${CHAT_SESSION_PREFIX}x y`)).toBe(false);
+    expect(isChatSessionKey(null)).toBe(false);
+  });
+
+  it("checks the files before they are sent", () => {
+    const mb = 1024 * 1024;
+    expect(chatFilesError([{ size: 2 * mb }])).toBeNull();
+    expect(chatFilesError(Array.from({ length: 6 }, () => ({ size: 1 })))).toBe("chatTooManyFiles");
+    expect(chatFilesError([{ size: 11 * mb }])).toBe("chatFileTooLarge");
+    expect(chatFilesError([{ size: 8 * mb }, { size: 8 * mb }])).toBe("chatFilesTooLarge");
+  });
+
+  it("frames only the first message and points the agent at its memory", () => {
+    const first = buildChatMessage("Merhaba, CV'm ekte.", { first: true, fileNames: ["cv.pdf"] });
+    expect(first).toContain("USER.md");
+    expect(first).toContain("same you that works on their tasks");
+    expect(first.endsWith("Merhaba, CV'm ekte.")).toBe(true);
+    expect(buildChatMessage("  devam  ", { first: false, fileNames: [] })).toBe("devam");
+    expect(buildChatMessage("", { first: false, fileNames: ["cv.pdf"] })).toContain("sent files");
+    expect(buildRunPrompt(base)).toContain("USER.md");
   });
 });
 
