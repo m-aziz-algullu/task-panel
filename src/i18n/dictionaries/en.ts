@@ -89,6 +89,7 @@ const en = {
     delete: "Delete comment",
     deleteConfirm: "Delete this comment?",
     loadError: "Couldn't load comments.",
+    agentHint: "This comment goes to the agent, which carries on in the same conversation.",
   },
   agentRun: {
     title: "Agent",
@@ -108,6 +109,9 @@ const en = {
     softHint: "The agent is told the budget and keeps to it.",
     hardHint: "Task Panel stops the run when the budget is spent.",
     give: "Hand to agent",
+    continue: "Continue with the agent",
+    freshStart: "Start a new conversation",
+    freshHint: "The agent won't remember its earlier work and reads the task from scratch.",
     stop: "Stop",
     stopConfirm: "Stop the agent's work on this task?",
     tokens: "{used} / {limit} tokens",

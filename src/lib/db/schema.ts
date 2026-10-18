@@ -62,8 +62,12 @@ export const agentRuns = pgTable("agent_runs", {
   timeoutSeconds: integer("timeout_seconds").notNull(),
   tokenLimit: integer("token_limit").notNull(),
   limitMode: text("limit_mode").notNull(),
-  sessionKey: text("session_key").notNull().unique(),
+  sessionKey: text("session_key").notNull(),
   openclawRunId: text("openclaw_run_id"),
+  /** The run whose OpenClaw conversation this one carries on, if any. */
+  continuesRunId: integer("continues_run_id"),
+  /** The session's token total when this run started. */
+  usageBaseline: integer("usage_baseline").notNull().default(0),
   tokensUsed: integer("tokens_used").notNull().default(0),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

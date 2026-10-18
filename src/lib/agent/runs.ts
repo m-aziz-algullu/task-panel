@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { schema, type Db } from "../db";
 import { moveTaskTo } from "../task-status";
 import {
@@ -42,14 +42,24 @@ export function toRun(row: RunRow): AgentRun {
 const isActive = inArray(agentRuns.status, [...ACTIVE_RUN_STATUSES]);
 
 /** The task's newest run, finished or not. */
-export async function latestRun(db: Db, taskId: number): Promise<AgentRun | null> {
+export async function latestRunRow(db: Db, taskId: number): Promise<RunRow | null> {
   const [row] = await db
     .select()
     .from(agentRuns)
     .where(eq(agentRuns.taskId, taskId))
     .orderBy(desc(agentRuns.id))
     .limit(1);
+  return row ?? null;
+}
+
+export async function latestRun(db: Db, taskId: number): Promise<AgentRun | null> {
+  const row = await latestRunRow(db, taskId);
   return row ? toRun(row) : null;
+}
+
+export async function runById(db: Db, runId: number): Promise<RunRow | null> {
+  const [row] = await db.select().from(agentRuns).where(eq(agentRuns.id, runId));
+  return row ?? null;
 }
 
 export async function activeRun(db: Db, taskId: number): Promise<RunRow | null> {
@@ -70,12 +80,16 @@ export async function activeRunStatuses(db: Db, taskIds: number[]): Promise<Map<
   return new Map(rows.map((row) => [row.taskId, row.status as RunStatus]));
 }
 
-/** Queues a run; null when the task already has one queued or running. */
+/**
+ * Queues a run; null when the task already has one queued or running. With
+ * `continues`, the run carries on that run's OpenClaw conversation (same session).
+ */
 export async function enqueueRun(
   db: Db,
   taskId: number,
   input: AgentRunInput,
   trigger: AgentRun["trigger"],
+  continues?: Pick<RunRow, "id" | "sessionKey">,
 ): Promise<AgentRun | null> {
   const rows = await db
     .insert(agentRuns)
@@ -89,7 +103,8 @@ export async function enqueueRun(
       timeoutSeconds: input.timeoutSeconds,
       tokenLimit: input.tokenLimit,
       limitMode: input.limitMode,
-      sessionKey: newSessionKey(taskId),
+      sessionKey: continues?.sessionKey ?? newSessionKey(taskId),
+      continuesRunId: continues?.id ?? null,
     })
     // The partial unique index allows one active run per task.
     .onConflictDoNothing()
@@ -111,18 +126,26 @@ export async function claimNextRun(db: Db): Promise<RunRow | null> {
   return row ?? null;
 }
 
-function newSessionKey(taskId: number): string {
+export function newSessionKey(taskId: number): string {
   return `${AGENT_SESSION_KEY_PREFIX}task-${taskId}:${randomUUID()}`;
 }
 
 /**
  * Puts a claimed run back in the queue, e.g. while the Gateway is restarting. A
- * fresh session key, since an interrupted attempt may have created the old session.
+ * new run gets a fresh session key, since an interrupted attempt may have created
+ * the old session; a follow-up keeps its conversation's key.
  */
-export async function requeueRun(db: Db, run: Pick<RunRow, "id" | "taskId">): Promise<void> {
+export async function requeueRun(
+  db: Db,
+  run: Pick<RunRow, "id" | "taskId" | "continuesRunId">,
+): Promise<void> {
   await db
     .update(agentRuns)
-    .set({ status: "queued", startedAt: null, sessionKey: newSessionKey(run.taskId) })
+    .set({
+      status: "queued",
+      startedAt: null,
+      ...(run.continuesRunId ? {} : { sessionKey: newSessionKey(run.taskId) }),
+    })
     .where(and(eq(agentRuns.id, run.id), eq(agentRuns.status, "running")));
 }
 
@@ -138,9 +161,18 @@ export async function runStatus(db: Db, runId: number): Promise<RunStatus | null
 export async function updateRun(
   db: Db,
   runId: number,
-  values: Partial<Pick<RunRow, "openclawRunId" | "tokensUsed">>,
+  values: Partial<Pick<RunRow, "openclawRunId" | "tokensUsed" | "usageBaseline" | "sessionKey" | "continuesRunId">>,
 ): Promise<void> {
   await db.update(agentRuns).set(values).where(eq(agentRuns.id, runId));
+}
+
+/** How many comments the user wrote on the task after `since`. */
+export async function userCommentsSince(db: Db, taskId: number, since: Date): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(taskComments)
+    .where(and(eq(taskComments.taskId, taskId), eq(taskComments.author, "user"), gt(taskComments.createdAt, since)));
+  return row?.value ?? 0;
 }
 
 export async function addRunComment(db: Db, run: Pick<RunRow, "id" | "taskId">, author: CommentAuthor, body: string) {

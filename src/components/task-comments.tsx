@@ -37,9 +37,13 @@ type TaskCommentsProps = {
   comments: TaskComment[] | null;
   setComments: Dispatch<SetStateAction<TaskComment[] | null>>;
   loadFailed: boolean;
+  /** The agent has worked on this task, so a new comment continues its conversation. */
+  toAgent: boolean;
+  /** After a comment is added: the agent may have picked it up. */
+  onAdded: () => void;
 };
 
-export function TaskComments({ taskId, timeZone, comments, setComments, loadFailed }: TaskCommentsProps) {
+export function TaskComments({ taskId, timeZone, comments, setComments, loadFailed, toAgent, onAdded }: TaskCommentsProps) {
   const { t, intlLocale } = useI18n();
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<MessageKey | null>(null);
@@ -53,6 +57,7 @@ export function TaskComments({ taskId, timeZone, comments, setComments, loadFail
       setComments((current) => [...(current ?? []), result.data]);
       setDraft("");
       setError(null);
+      onAdded();
     });
   };
 
@@ -123,6 +128,11 @@ export function TaskComments({ taskId, timeZone, comments, setComments, loadFail
             }
           }}
         />
+        {toAgent && (
+          <p className="flex items-center gap-1.5 text-xs font-medium text-agent">
+            <Bot className="size-3.5 shrink-0" /> {t("comments.agentHint")}
+          </p>
+        )}
         <div className="flex items-center gap-2">
           {error && <p className="text-xs text-red-600 dark:text-red-400">{t(error)}</p>}
           <span className="ml-auto hidden text-xs text-muted sm:inline">{t("comments.hint")}</span>

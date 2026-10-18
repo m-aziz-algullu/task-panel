@@ -2,7 +2,7 @@
 
 import { Bot, Square } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { startAgentRun, stopAgentRun } from "@/app/actions";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
@@ -59,8 +59,21 @@ export function RunStatusBadge({ status }: { status: RunStatus }) {
 
 type Form = AgentRunInput & { preset: TokenPreset | "custom" };
 
-function initialForm(options: AgentOptions): Form {
+/** The previous run's settings when there is one (a follow-up usually wants the same), else the defaults. */
+function initialForm(options: AgentOptions, previous: AgentRun | null): Form {
   const { settings } = options;
+  if (previous) {
+    const preset = TOKEN_PRESETS.find((p) => settings.tokenPresets[p] === previous.tokenLimit) ?? "custom";
+    return {
+      agentId: previous.agentId,
+      model: previous.model,
+      thinking: previous.thinking,
+      timeoutSeconds: previous.timeoutSeconds,
+      tokenLimit: previous.tokenLimit,
+      limitMode: previous.limitMode,
+      preset,
+    };
+  }
   return {
     agentId: settings.agentId,
     model: settings.model,
@@ -110,7 +123,13 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
   const { t, intlLocale, locale } = useI18n();
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [form, setForm] = useState<Form | null>(null);
+  const [fresh, setFresh] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
+  // The form starts from the latest run, which may load after the options do.
+  const latestRun = useRef(run);
+  useEffect(() => {
+    latestRun.current = run;
+  }, [run]);
   const [pending, startTransition] = useTransition();
   const compact = useMemo(() => new Intl.NumberFormat(intlLocale, { notation: "compact" }), [intlLocale]);
 
@@ -121,7 +140,7 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
       .then((data: AgentOptions) => {
         if (cancelled) return;
         setOptions(data);
-        setForm((current) => current ?? initialForm(data));
+        setForm((current) => current ?? initialForm(data, latestRun.current));
       })
       .catch(() => {
         if (!cancelled) setError("errors.agentUnavailable");
@@ -152,7 +171,7 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
       limitMode: form.limitMode,
     };
     startTransition(async () => {
-      const result = await startAgentRun(taskId, input);
+      const result = await startAgentRun(taskId, input, fresh);
       if (!result.ok) return setError(result.error);
       setError(null);
       onChange();
@@ -339,13 +358,28 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
             />
           </label>
 
+          {run && (
+            <label className="flex items-start gap-2 text-xs text-muted" title={t("agentRun.freshHint")}>
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-[var(--agent)]"
+                checked={fresh}
+                onChange={(event) => setFresh(event.target.checked)}
+              />
+              <span>
+                {t("agentRun.freshStart")}
+                <span className="block text-[11px]">{t("agentRun.freshHint")}</span>
+              </span>
+            </label>
+          )}
+
           <button
             type="button"
             className="btn bg-agent text-white hover:brightness-110 dark:text-gray-950"
             disabled={pending || !connected}
             onClick={give}
           >
-            <Bot className="size-4" /> {t("agentRun.give")}
+            <Bot className="size-4" /> {t(run && !fresh ? "agentRun.continue" : "agentRun.give")}
           </button>
         </div>
       )}

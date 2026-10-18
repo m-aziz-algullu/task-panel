@@ -89,6 +89,7 @@ const tr = {
     delete: "Yorumu sil",
     deleteConfirm: "Bu yorum silinsin mi?",
     loadError: "Yorumlar yüklenemedi.",
+    agentHint: "Bu yorum ajana iletilir; ajan aynı sohbette çalışmaya devam eder.",
   },
   agentRun: {
     title: "Ajan",
@@ -108,6 +109,9 @@ const tr = {
     softHint: "Bütçe ajana söylenir, ajan kendisi uyar.",
     hardHint: "Bütçe dolunca Task Panel çalışmayı durdurur.",
     give: "Ajana ver",
+    continue: "Ajanla devam et",
+    freshStart: "Yeni sohbet başlat",
+    freshHint: "Ajan önceki çalışmasını hatırlamaz, task'ı baştan okur.",
     stop: "Durdur",
     stopConfirm: "Ajanın bu task üzerindeki çalışması durdurulsun mu?",
     tokens: "{used} / {limit} token",

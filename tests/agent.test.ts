@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SESSION_KEY_PREFIX as GATEWAY_PREFIX } from "../docker/openclaw-bootstrap.mjs";
 import { claudeAuthFrom, claudeCliModels } from "@/lib/agent/claude-auth";
-import { buildRunPrompt, parseRunReport, type PromptInput } from "@/lib/agent/prompt";
+import { commentContinuation, continuesAfterRun, followUpInput, runTokens } from "@/lib/agent/continuation";
+import { buildFollowUpPrompt, buildRunPrompt, parseRunReport, type PromptInput } from "@/lib/agent/prompt";
 import { DEFAULT_AGENT_SETTINGS, parseAgentSettings } from "@/lib/agent/settings-shape";
 import { parseSystemComment, systemCommentBody } from "@/lib/agent/system-comments";
 import en from "@/i18n/dictionaries/en";
@@ -153,6 +154,74 @@ describe("parseRunReport", () => {
     expect(parseRunReport(null)).toBeNull();
     expect(parseRunReport("  ")).toBeNull();
     expect(parseRunReport(`RESULT: done\n${"x".repeat(20_000)}`)!.body).toHaveLength(10_000);
+  });
+});
+
+describe("buildFollowUpPrompt", () => {
+  const followUp = {
+    task: { id: 7, title: "Rakip fiyatlarını araştır", description: "İlk üç rakip yeter." },
+    tokenLimit: 250_000,
+    limitMode: "hard" as const,
+    timeoutSeconds: 1800,
+  };
+
+  it("brings only what's new, plus the task as it stands and the report rule", () => {
+    const prompt = buildFollowUpPrompt({
+      ...followUp,
+      newComments: [{ body: "Beşinci rakibi de ekle.", createdAt: "2026-10-18T09:00:00.000Z" }],
+    });
+    expect(prompt).toContain("Continue from where you left off");
+    expect(prompt).toContain("## New comments from the user");
+    expect(prompt).toContain("Beşinci rakibi de ekle.");
+    expect(prompt).toContain("İlk üç rakip yeter.");
+    expect(prompt).toContain("`RESULT: done`");
+    expect(prompt).toContain("250,000 tokens");
+    expect(prompt).not.toContain("## Earlier comments");
+  });
+
+  it("still makes sense when the user just asks to carry on", () => {
+    expect(buildFollowUpPrompt({ ...followUp, newComments: [] })).toContain("asked you to carry on");
+  });
+
+  it("tells the first message that the user's latest comments are instructions", () => {
+    expect(buildRunPrompt(base)).toContain("the user's latest ones are instructions for this run");
+  });
+});
+
+describe("continuing the conversation", () => {
+  it("continues on a comment only once the agent has worked on an open task", () => {
+    const comment = (latestRunStatus: Parameters<typeof commentContinuation>[0]["latestRunStatus"]) =>
+      commentContinuation({ agentEnabled: true, taskStatus: "pending", latestRunStatus });
+    expect(comment(null)).toBe("none");
+    expect(comment("done")).toBe("now");
+    expect(comment("blocked")).toBe("now");
+    expect(comment("aborted")).toBe("now");
+    expect(comment("queued")).toBe("later");
+    expect(comment("running")).toBe("later");
+    expect(commentContinuation({ agentEnabled: true, taskStatus: "done", latestRunStatus: "done" })).toBe("none");
+    expect(commentContinuation({ agentEnabled: false, taskStatus: "pending", latestRunStatus: "done" })).toBe("none");
+  });
+
+  it("picks up comments written while a run worked, unless the user stopped it", () => {
+    expect(continuesAfterRun({ runStatus: "done", taskStatus: "pending", userCommentsSinceStart: 1 })).toBe(true);
+    expect(continuesAfterRun({ runStatus: "failed", taskStatus: "pending", userCommentsSinceStart: 2 })).toBe(true);
+    expect(continuesAfterRun({ runStatus: "done", taskStatus: "pending", userCommentsSinceStart: 0 })).toBe(false);
+    expect(continuesAfterRun({ runStatus: "aborted", taskStatus: "pending", userCommentsSinceStart: 1 })).toBe(false);
+    expect(continuesAfterRun({ runStatus: "done", taskStatus: "done", userCommentsSinceStart: 1 })).toBe(false);
+  });
+
+  it("keeps the previous run's settings and counts only this run's tokens", () => {
+    const input = {
+      agentId: "main",
+      model: "anthropic/claude-sonnet-5-5",
+      thinking: "low",
+      timeoutSeconds: 900,
+      tokenLimit: 250_000,
+      limitMode: "soft" as const,
+    };
+    expect(followUpInput({ ...input, extra: "ignored" } as typeof input)).toEqual(input);
+    expect(runTokens(1_300_000, 1_000_000)).toBe(300_000);
+    expect(runTokens(10, 50)).toBe(0);
   });
 });
 
