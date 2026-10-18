@@ -7,17 +7,24 @@ import { listComments, loadTask } from "../data";
 import { GatewayUnavailableError, gatewayRequest } from "../openclaw/client";
 import { gatewayConnection } from "../openclaw/connection";
 import { moveTaskTo } from "../task-status";
-import { buildRunPrompt, parseRunReport } from "./prompt";
+import type { LimitMode, RunStatus, Task } from "../types";
+import { continuesAfterRun, followUpInput, runTokens } from "./continuation";
+import { buildFollowUpPrompt, buildRunPrompt, parseRunReport } from "./prompt";
 import {
   claimNextRun,
+  enqueueRun,
   finalizeRun,
+  newSessionKey,
   requeueRun,
+  runById,
   runStatus,
   runningRuns,
   updateRun,
+  userCommentsSince,
   type RunRow,
 } from "./runs";
 import { getAgentSettings } from "./settings";
+import type { AgentSettings } from "./settings-shape";
 import { systemCommentBody } from "./system-comments";
 
 const { tags } = schema;
@@ -29,6 +36,10 @@ const WAIT_SLICE_MS = 10_000;
 const DEADLINE_GRACE_MS = 60_000;
 
 type WaitResult = { status?: string; error?: unknown; message?: string };
+type TurnStarted = { runId?: string; runStarted?: boolean; runError?: { message?: string } };
+
+/** The conversation a follow-up was meant to continue doesn't exist (anymore). */
+class SessionMissingError extends Error {}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -40,6 +51,7 @@ function errorText(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** The OpenClaw session's token total so far; null before anything is recorded. */
 async function sessionTokens(sessionKey: string): Promise<number | null> {
   try {
     const usage = await gatewayRequest<{ totals?: { totalTokens?: number } }>("sessions.usage", { key: sessionKey });
@@ -81,6 +93,14 @@ async function finalReply(run: RunRow, result: unknown): Promise<string | null> 
   }
 }
 
+function failure(reason: string) {
+  return {
+    status: "failed" as const,
+    error: reason,
+    comment: { author: "system" as const, body: systemCommentBody("agentRun.systemFailed", { error: reason }) },
+  };
+}
+
 class AgentWorker {
   private watching = new Set<number>();
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -107,14 +127,14 @@ class AgentWorker {
       // Runs left running by an earlier process (a restart or deploy): watch them again.
       for (const row of running) {
         if (this.watching.has(row.id)) continue;
-        if (row.openclawRunId) this.track(row.id, () => this.watch(db, row));
+        if (row.openclawRunId) this.track(db, row.id, () => this.watch(db, row));
         else await requeueRun(db, row);
       }
       let free = settings.concurrency - running.length;
       while (free-- > 0) {
         const claimed = await claimNextRun(db);
         if (!claimed) break;
-        this.track(claimed.id, () => this.dispatch(db, claimed));
+        this.track(db, claimed.id, () => this.dispatch(db, claimed));
       }
     } catch (error) {
       console.error("[agent] Worker tick failed:", error);
@@ -123,9 +143,10 @@ class AgentWorker {
     }
   }
 
-  private track(runId: number, work: () => Promise<void>) {
+  private track(db: Db, runId: number, work: () => Promise<void>) {
     this.watching.add(runId);
     work()
+      .then(() => this.continueAfter(db, runId))
       .catch((error) => console.error(`[agent] Run ${runId} failed:`, error))
       .finally(() => {
         this.watching.delete(runId);
@@ -133,14 +154,68 @@ class AgentWorker {
       });
   }
 
-  private async dispatch(db: Db, run: RunRow) {
-    const connection = gatewayConnection();
+  /** The user commented while the run worked: carry the conversation on with them. */
+  private async continueAfter(db: Db, runId: number) {
+    const run = await runById(db, runId);
+    if (!run?.startedAt || run.status === "queued" || run.status === "running") return;
     const task = await loadTask(db, run.taskId);
-    if (!task || !connection) {
+    if (!task) return;
+    const comments = await userCommentsSince(db, run.taskId, new Date(run.startedAt));
+    const goOn = continuesAfterRun({
+      runStatus: run.status as RunStatus,
+      taskStatus: task.status,
+      userCommentsSinceStart: comments,
+    });
+    if (!goOn) return;
+    await enqueueRun(db, run.taskId, followUpInput({ ...run, limitMode: run.limitMode as LimitMode }), "comment", run);
+  }
+
+  private async dispatch(db: Db, run: RunRow) {
+    const task = await loadTask(db, run.taskId);
+    if (!task || !gatewayConnection()) {
       await finalizeRun(db, run, { status: "failed", error: task ? "agent disabled" : "task not found" });
       return;
     }
     const settings = await getAgentSettings(db);
+
+    let started: TurnStarted;
+    let current = run;
+    try {
+      if (run.continuesRunId) {
+        try {
+          ({ started, run: current } = await this.sendFollowUp(db, run, task));
+        } catch (error) {
+          // The conversation is gone (never started, deleted or reset): start a new
+          // one that sees the whole task and its comments instead.
+          if (!(error instanceof SessionMissingError) && !/session not found/i.test(errorText(error))) throw error;
+          current = { ...run, sessionKey: newSessionKey(run.taskId), continuesRunId: null, usageBaseline: 0 };
+          await updateRun(db, run.id, { sessionKey: current.sessionKey, continuesRunId: null, usageBaseline: 0 });
+          started = await this.createSession(db, current, task, settings);
+        }
+      } else {
+        started = await this.createSession(db, run, task, settings);
+      }
+    } catch (error) {
+      if (error instanceof GatewayUnavailableError) {
+        // Probably still starting next to the app; try again on a later tick.
+        await requeueRun(db, current);
+        await sleep(TICK_MS);
+        return;
+      }
+      await finalizeRun(db, current, failure(errorText(error)));
+      return;
+    }
+    if (!started.runId || started.runError) {
+      await finalizeRun(db, current, failure(started.runError?.message ?? "the run did not start"));
+      return;
+    }
+    await updateRun(db, current.id, { openclawRunId: started.runId });
+    if (task.status !== "in_progress" && task.status !== "done") await moveTaskTo(db, task.id, "in_progress");
+    await this.watch(db, { ...current, openclawRunId: started.runId, startedAt: current.startedAt ?? new Date() });
+  }
+
+  /** The first turn of a task's conversation: a new OpenClaw session with the whole task. */
+  private async createSession(db: Db, run: RunRow, task: Task, settings: AgentSettings): Promise<TurnStarted> {
     const [comments, tagRows] = await Promise.all([
       listComments(db, task.id),
       task.tagIds.length
@@ -153,54 +228,69 @@ class AgentWorker {
       comments,
       instructions: settings.instructions,
       tokenLimit: run.tokenLimit,
-      limitMode: run.limitMode as "soft" | "hard",
+      limitMode: run.limitMode as LimitMode,
       timeoutSeconds: run.timeoutSeconds,
     });
+    return gatewayRequest<TurnStarted>(
+      "sessions.create",
+      {
+        // No idempotency key: the Gateway only takes one from device-paired clients.
+        // The unique session key (renewed on requeue) keeps a run from starting twice.
+        key: run.sessionKey,
+        // Labels must be unique in OpenClaw; the session key's tail differs per attempt.
+        label: `Task #${task.id} · ${run.sessionKey.slice(-8)} · ${task.title}`.slice(0, 120),
+        message,
+        timeoutMs: run.timeoutSeconds * 1000,
+        ...(run.agentId ? { agentId: run.agentId } : {}),
+        ...(run.model ? { model: run.model } : {}),
+        ...(run.thinking ? { thinkingLevel: run.thinking } : {}),
+      },
+      { timeoutMs: 60_000, connectTimeoutMs: 15_000 },
+    );
+  }
 
-    let created: { runId?: string; runStarted?: boolean; runError?: { message?: string } };
-    try {
-      created = await gatewayRequest(
-        "sessions.create",
-        {
-          // No idempotency key: the Gateway only takes one from device-paired clients.
-          // The unique session key (renewed on requeue) keeps a run from starting twice.
-          key: run.sessionKey,
-          // Labels must be unique in OpenClaw; the session key's tail differs per attempt.
-          label: `Task #${task.id} · ${run.sessionKey.slice(-8)} · ${task.title}`.slice(0, 120),
-          message,
-          timeoutMs: run.timeoutSeconds * 1000,
-          ...(run.agentId ? { agentId: run.agentId } : {}),
-          ...(run.model ? { model: run.model } : {}),
-          ...(run.thinking ? { thinkingLevel: run.thinking } : {}),
-        },
-        { timeoutMs: 60_000, connectTimeoutMs: 15_000 },
-      );
-    } catch (error) {
-      if (error instanceof GatewayUnavailableError) {
-        // Probably still starting next to the app; try again on a later tick.
-        await requeueRun(db, run);
-        await sleep(TICK_MS);
-        return;
-      }
-      await finalizeRun(db, run, {
-        status: "failed",
-        error: errorText(error),
-        comment: { author: "system", body: systemCommentBody("agentRun.systemFailed", { error: errorText(error) }) },
+  /** A follow-up turn in the task's existing session, with just what's new. */
+  private async sendFollowUp(db: Db, run: RunRow, task: Task): Promise<{ started: TurnStarted; run: RunRow }> {
+    const previous = run.continuesRunId ? await runById(db, run.continuesRunId) : null;
+    const since = new Date(previous?.startedAt ?? previous?.createdAt ?? 0);
+    const newComments = (await listComments(db, task.id)).filter(
+      (comment) => comment.author === "user" && new Date(comment.createdAt) > since,
+    );
+    // Token usage is per session; this run spends what's added from here on.
+    // Checked first: patching a missing session would quietly create an empty one,
+    // and the agent would get this short follow-up without the task's history.
+    const described = await gatewayRequest<{ session?: { sessionId?: string } | null }>("sessions.describe", {
+      key: run.sessionKey,
+      ...(run.agentId ? { agentId: run.agentId } : {}),
+    });
+    if (!described.session?.sessionId) throw new SessionMissingError(run.sessionKey);
+    const usageBaseline = (await sessionTokens(run.sessionKey)) ?? 0;
+    await updateRun(db, run.id, { usageBaseline });
+    if (run.model || run.thinking) {
+      await gatewayRequest("sessions.patch", {
+        key: run.sessionKey,
+        ...(run.agentId ? { agentId: run.agentId } : {}),
+        ...(run.model ? { model: run.model } : {}),
+        ...(run.thinking ? { thinkingLevel: run.thinking } : {}),
       });
-      return;
     }
-    if (!created.runId || created.runError) {
-      const reason = created.runError?.message ?? "the run did not start";
-      await finalizeRun(db, run, {
-        status: "failed",
-        error: reason,
-        comment: { author: "system", body: systemCommentBody("agentRun.systemFailed", { error: reason }) },
-      });
-      return;
-    }
-    await updateRun(db, run.id, { openclawRunId: created.runId });
-    if (task.status !== "in_progress" && task.status !== "done") await moveTaskTo(db, task.id, "in_progress");
-    await this.watch(db, { ...run, openclawRunId: created.runId, startedAt: run.startedAt ?? new Date() });
+    const started = await gatewayRequest<TurnStarted>(
+      "sessions.send",
+      {
+        key: run.sessionKey,
+        message: buildFollowUpPrompt({
+          task,
+          newComments,
+          tokenLimit: run.tokenLimit,
+          limitMode: run.limitMode as LimitMode,
+          timeoutSeconds: run.timeoutSeconds,
+        }),
+        timeoutMs: run.timeoutSeconds * 1000,
+        ...(run.agentId ? { agentId: run.agentId } : {}),
+      },
+      { timeoutMs: 60_000, connectTimeoutMs: 15_000 },
+    );
+    return { started, run: { ...run, usageBaseline } };
   }
 
   /** Follows a running run until it ends, enforcing the hard budget and the time limit. */
@@ -209,13 +299,17 @@ class AgentWorker {
     const startedAt = run.startedAt ? new Date(run.startedAt).getTime() : Date.now();
     const deadline = startedAt + run.timeoutSeconds * 1000 + DEADLINE_GRACE_MS;
     let tokensUsed = run.tokensUsed;
+    const spent = async () => {
+      const total = await sessionTokens(run.sessionKey);
+      return total == null ? tokensUsed : runTokens(total, run.usageBaseline);
+    };
 
     while (true) {
       // The stop button (or removing the agent tag) ended it.
       if ((await runStatus(db, run.id)) !== "running") return;
 
-      const used = await sessionTokens(run.sessionKey);
-      if (used != null && used !== tokensUsed) {
+      const used = await spent();
+      if (used !== tokensUsed) {
         tokensUsed = used;
         await updateRun(db, run.id, { tokensUsed });
       }
@@ -258,14 +352,7 @@ class AgentWorker {
           await sleep(TICK_MS);
           continue;
         }
-        const reason = errorText(error);
-        await finalizeRun(db, run, {
-          status: "failed",
-          error: reason,
-          tokensUsed,
-          moveTo: settings.statusOnBlocked,
-          comment: { author: "system", body: systemCommentBody("agentRun.systemFailed", { error: reason }) },
-        });
+        await finalizeRun(db, run, { ...failure(errorText(error)), tokensUsed, moveTo: settings.statusOnBlocked });
         return;
       }
 
@@ -273,7 +360,7 @@ class AgentWorker {
       // "timeout" means only that this wait slice ended; the run goes on.
       if (status === "timeout" || status === "pending" || status === "running" || status === "") continue;
 
-      tokensUsed = (await sessionTokens(run.sessionKey)) ?? tokensUsed;
+      tokensUsed = await spent();
       if (status === "cancelled" || status === "aborted") {
         await finalizeRun(db, run, {
           status: "aborted",
@@ -283,13 +370,10 @@ class AgentWorker {
         return;
       }
       if (status === "error" || status === "failed") {
-        const reason = errorText(result.error ?? result.message);
         await finalizeRun(db, run, {
-          status: "failed",
-          error: reason,
+          ...failure(errorText(result.error ?? result.message)),
           tokensUsed,
           moveTo: settings.statusOnBlocked,
-          comment: { author: "system", body: systemCommentBody("agentRun.systemFailed", { error: reason }) },
         });
         return;
       }

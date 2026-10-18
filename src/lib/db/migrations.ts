@@ -135,4 +135,17 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `ALTER TABLE agent_runs DROP COLUMN token_hash`,
     ],
   },
+  {
+    version: 9,
+    statements: [
+      // A task's follow-up runs continue the same OpenClaw session, so the key repeats.
+      `ALTER TABLE agent_runs DROP CONSTRAINT agent_runs_session_key_key`,
+      `CREATE INDEX agent_runs_session_key_idx ON agent_runs (session_key)`,
+      `ALTER TABLE agent_runs ADD COLUMN continues_run_id integer REFERENCES agent_runs (id) ON DELETE SET NULL`,
+      // The session's token total when the run started; the run spent the difference.
+      `ALTER TABLE agent_runs ADD COLUMN usage_baseline integer NOT NULL DEFAULT 0`,
+      `ALTER TABLE agent_runs DROP CONSTRAINT agent_runs_trigger_check`,
+      `ALTER TABLE agent_runs ADD CONSTRAINT agent_runs_trigger_check CHECK (trigger IN ('manual', 'tag', 'comment'))`,
+    ],
+  },
 ];

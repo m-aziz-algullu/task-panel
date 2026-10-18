@@ -6,7 +6,8 @@ import { z } from "zod";
 import { isHexColor } from "@/lib/colors";
 import { getDb, schema, type Db } from "@/lib/db";
 import { syncAgentTag } from "@/lib/agent/auto";
-import { activeRun, enqueueRun, finalizeRun } from "@/lib/agent/runs";
+import { continueFromComment } from "@/lib/agent/continue";
+import { activeRun, enqueueRun, finalizeRun, latestRunRow } from "@/lib/agent/runs";
 import { MAX_TIMEOUT_SECONDS, MAX_TOKEN_LIMIT, MIN_TOKEN_LIMIT } from "@/lib/agent/settings-shape";
 import { systemCommentBody } from "@/lib/agent/system-comments";
 import { abortSession, pokeAgentWorker } from "@/lib/agent/worker";
@@ -247,6 +248,8 @@ export async function addComment(rawTaskId: number, rawBody: string): Promise<Ac
     const [task] = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId));
     if (!task) return { ok: false, error: "errors.taskNotFound" };
     const [row] = await db.insert(taskComments).values({ taskId, author: "user", body }).returning();
+    // On a task the agent has worked on, the comment carries the conversation on.
+    if (await continueFromComment(db, taskId)) refresh();
     return { ok: true, data: toComment(row) };
   } catch (error) {
     return fail(error);
@@ -264,8 +267,16 @@ export async function deleteComment(rawId: number): Promise<ActionResult> {
   }
 }
 
-/** Hands a task to the agent: queues a run that the worker starts as soon as there's room. */
-export async function startAgentRun(rawTaskId: number, raw: AgentRunInput): Promise<ActionResult<AgentRun>> {
+/**
+ * Hands a task to the agent: queues a run that the worker starts as soon as there's
+ * room. If the agent has worked on the task before, the run continues that
+ * conversation unless `fresh` asks for a new one.
+ */
+export async function startAgentRun(
+  rawTaskId: number,
+  raw: AgentRunInput,
+  fresh = false,
+): Promise<ActionResult<AgentRun>> {
   await requireSession();
   try {
     const taskId = id.parse(rawTaskId);
@@ -274,7 +285,8 @@ export async function startAgentRun(rawTaskId: number, raw: AgentRunInput): Prom
     const db = await getDb();
     const [task] = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId));
     if (!task) return { ok: false, error: "errors.taskNotFound" };
-    const run = await enqueueRun(db, taskId, input, "manual");
+    const previous = fresh ? null : await latestRunRow(db, taskId);
+    const run = await enqueueRun(db, taskId, input, "manual", previous ?? undefined);
     if (!run) return { ok: false, error: "errors.agentRunActive" };
     pokeAgentWorker();
     refresh();

@@ -96,7 +96,8 @@ export type AgentRun = {
   id: number;
   taskId: number;
   status: RunStatus;
-  trigger: "manual" | "tag";
+  /** Who started it: the run panel, the agent tag, or a comment continuing the conversation. */
+  trigger: "manual" | "tag" | "comment";
   agentId: string | null;
   model: string | null;
   thinking: string | null;
