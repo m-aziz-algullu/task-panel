@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Info, Trash2, User } from "lucide-react";
+import { Bot, Info, MessageSquare, SendHorizontal, Trash2, User } from "lucide-react";
 import { useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { addComment, deleteComment } from "@/app/actions";
 import { useI18n } from "@/i18n/client";
@@ -11,8 +11,8 @@ import { MAX_COMMENT_LENGTH, type CommentAuthor, type TaskComment } from "@/lib/
 import { Markdown } from "./markdown";
 
 const AUTHOR_META: Record<CommentAuthor, { label: MessageKey; icon: typeof User; className: string }> = {
-  user: { label: "comments.you", icon: User, className: "bg-surface-2 text-fg" },
-  agent: { label: "comments.agent", icon: Bot, className: "bg-accent/15 text-accent" },
+  user: { label: "comments.you", icon: User, className: "bg-accent/15 text-accent" },
+  agent: { label: "comments.agent", icon: Bot, className: "bg-agent/15 text-agent" },
   system: { label: "comments.system", icon: Info, className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
 };
 
@@ -31,6 +31,15 @@ function commentText(comment: TaskComment, t: Translate, intlLocale: string): st
   return t(system.key, vars);
 }
 
+function Avatar({ author }: { author: CommentAuthor }) {
+  const { icon: Icon, className } = AUTHOR_META[author];
+  return (
+    <span className={`mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full ${className}`}>
+      <Icon className="size-3.5" />
+    </span>
+  );
+}
+
 type TaskCommentsProps = {
   taskId: number;
   timeZone: string;
@@ -40,13 +49,28 @@ type TaskCommentsProps = {
   loadFailed: boolean;
   /** After a comment is added: the agent may have picked it up. */
   onAdded: () => void;
+  /** Whether an unsent comment is typed, so saving the task can warn before dropping it. */
+  onDraftChange: (hasDraft: boolean) => void;
 };
 
-export function TaskComments({ taskId, timeZone, comments, setComments, loadFailed, onAdded }: TaskCommentsProps) {
+export function TaskComments({
+  taskId,
+  timeZone,
+  comments,
+  setComments,
+  loadFailed,
+  onAdded,
+  onDraftChange,
+}: TaskCommentsProps) {
   const { t, intlLocale } = useI18n();
-  const [draft, setDraft] = useState("");
+  const [draft, setDraftState] = useState("");
   const [error, setError] = useState<MessageKey | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const setDraft = (value: string) => {
+    setDraftState(value);
+    onDraftChange(value.trim() !== "");
+  };
 
   const submit = () => {
     if (!draft.trim()) return;
@@ -70,31 +94,31 @@ export function TaskComments({ taskId, timeZone, comments, setComments, loadFail
   };
 
   return (
-    <section className="flex flex-col gap-3">
-      <span className="text-xs font-semibold text-muted">{t("comments.title")}</span>
+    <section className="flex flex-col gap-3 border-t border-border pt-4">
+      <h3 className="flex items-center gap-2 text-xs font-semibold text-muted">
+        <MessageSquare className="size-3.5" />
+        {t("comments.title")}
+        {comments && comments.length > 0 && (
+          <span className="rounded-full bg-surface-2 px-1.5 py-px tabular-nums">{comments.length}</span>
+        )}
+      </h3>
 
       {loadFailed && !comments && <p className="text-xs text-red-600 dark:text-red-400">{t("comments.loadError")}</p>}
       {comments?.length === 0 && <p className="text-xs text-muted">{t("comments.empty")}</p>}
       {comments && comments.length > 0 && (
-        <ol className="flex flex-col gap-2">
-          {comments.map((comment) => {
-            const meta = AUTHOR_META[comment.author];
-            const Icon = meta.icon;
-            return (
-              <li key={comment.id} className="group flex flex-col gap-1 rounded-lg border border-border p-3">
+        <ol className="flex flex-col gap-3">
+          {comments.map((comment) => (
+            <li key={comment.id} className="group flex gap-2.5">
+              <Avatar author={comment.author} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2">
                 <div className="flex items-center gap-2 text-xs">
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${meta.className}`}
-                  >
-                    <Icon className="size-3" />
-                    {t(meta.label)}
-                  </span>
+                  <span className="font-semibold">{t(AUTHOR_META[comment.author].label)}</span>
                   <time className="text-muted" dateTime={comment.createdAt}>
                     {formatDateTime(comment.createdAt, timeZone, intlLocale)}
                   </time>
                   <button
                     type="button"
-                    className="icon-btn ml-auto size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    className="icon-btn -my-1 -mr-1.5 ml-auto size-6 opacity-0 group-hover:opacity-100 hover:text-red-600 focus-visible:opacity-100 dark:hover:text-red-400"
                     aria-label={t("comments.delete")}
                     title={t("comments.delete")}
                     disabled={pending}
@@ -108,35 +132,49 @@ export function TaskComments({ taskId, timeZone, comments, setComments, loadFail
                 ) : (
                   <p className="text-sm break-words whitespace-pre-wrap">{commentText(comment, t, intlLocale)}</p>
                 )}
-              </li>
-            );
-          })}
+              </div>
+            </li>
+          ))}
         </ol>
       )}
 
-      <div className="flex flex-col gap-2">
-        <textarea
-          className="input resize-y text-sm"
-          rows={2}
-          placeholder={t("comments.placeholder")}
-          value={draft}
-          maxLength={MAX_COMMENT_LENGTH}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            // Ctrl+Enter here sends the comment instead of saving the task form around it.
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              event.stopPropagation();
-              submit();
-            }
-          }}
-        />
-        <div className="flex items-center gap-2">
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{t(error)}</p>}
-          <span className="ml-auto hidden text-xs text-muted sm:inline">{t("comments.hint")}</span>
-          <button type="button" className="btn btn-ghost" disabled={pending || !draft.trim()} onClick={submit}>
-            {t("comments.add")}
-          </button>
+      <div className="flex gap-2.5">
+        <Avatar author="user" />
+        {/* The field and its send button share one box, so it reads apart from the task's own Save. */}
+        <div className="min-w-0 flex-1 rounded-lg border border-border bg-surface transition focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
+          <textarea
+            className="block max-h-60 min-h-16 w-full resize-y bg-transparent px-3 pt-2 text-sm text-fg outline-none placeholder:text-muted"
+            rows={2}
+            placeholder={t("comments.placeholder")}
+            aria-label={t("comments.placeholder")}
+            value={draft}
+            maxLength={MAX_COMMENT_LENGTH}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              // Ctrl+Enter here sends the comment instead of saving the task form around it.
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                event.stopPropagation();
+                submit();
+              }
+            }}
+          />
+          <div className="flex items-center gap-2 px-2 pb-2">
+            {error ? (
+              <p className="px-1 text-xs text-red-600 dark:text-red-400">{t(error)}</p>
+            ) : (
+              <span className="hidden px-1 text-xs text-muted sm:inline">{t("comments.hint")}</span>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary ml-auto px-2.5 py-1 text-xs"
+              disabled={pending || !draft.trim()}
+              onClick={submit}
+            >
+              <SendHorizontal className="size-3.5" />
+              {t("comments.add")}
+            </button>
+          </div>
         </div>
       </div>
     </section>
