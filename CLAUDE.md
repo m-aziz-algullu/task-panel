@@ -1,0 +1,46 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+@AGENTS.md
+
+Task Panel is a self-hosted, single-user kanban board (Next.js 16 App Router, React 19, Drizzle on PostgreSQL, Tailwind 4) with an optional bundled OpenClaw agent that works on tasks. Requires Node.js 24+.
+
+## Commands
+
+```bash
+npm run dev            # dev server on :3000; uses embedded PGlite in ./.data/pglite when DATABASE_URL is unset
+npm run agent:dev      # (second terminal, optional) local OpenClaw Gateway on 127.0.0.1:18799, home in ./.data/openclaw
+npm run agent:cli -- … # run the openclaw CLI against that local gateway
+npm run lint
+npm run typecheck      # next typegen && tsc --noEmit
+npm test               # vitest run (tests/**/*.test.ts)
+npx vitest run tests/dates.test.ts        # one file
+npx vitest run -t "name of the test"      # one test by name
+npm run build
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build in that order.
+
+On a fresh database the server prints a one-time setup code to the logs; `/register` needs it to create the only (admin) account. `SETUP_TOKEN` pins it.
+
+## Architecture
+
+**Routing and i18n.** Every page lives under `src/app/[lang]/` (`en`, `tr`). `src/proxy.ts` (Next 16's replacement for middleware) adds the locale prefix to bare paths and does an optimistic cookie-only auth redirect; the real session check happens against the DB in every data read and Server Action via `requireSession()` (`src/lib/session.ts`). Server Components get strings from `getI18n()` (`src/i18n/server.ts`, uses `next/root-params`, so it fails in Client Components); Client Components use the `I18nProvider` context from `src/i18n/client.tsx`. `dictionaries/tr.ts` defines the `Dictionary` type, so every new key must be added to both `tr.ts` and `en.ts`.
+
+**Data layer.** `getDb()` (`src/lib/db/index.ts`) is a global, lazily created connection that applies migrations on first use: `postgres` when `DATABASE_URL` is set, PGlite otherwise (dev only; production refuses to start without `DATABASE_URL`). Migrations are raw SQL in `src/lib/db/migrations.ts`, applied in order under an advisory lock. Never edit a shipped entry; append a new version and keep `schema.ts` in sync by hand (there is no drizzle-kit). Reads are in `src/lib/data.ts`; all mutations are Server Actions in `src/app/actions.ts` (zod-validated, end with `refresh()`). `cacheComponents` is on, so DB reads call `connection()` first and use the DB clock (`sql\`now()\``) instead of `new Date()` where prerendering could happen.
+
+**Days and ordering.** A "day" is computed in `APP_TIMEZONE` (`getClock()` in `data.ts`, helpers in `dates.ts`). Done tasks stay on the board until midnight, then appear on `/completed`; open tabs refresh themselves at the rollover (`use-day-rollover.ts`). Card order is a float `position` per column (`task-status.ts`, `ordering.ts`).
+
+**Startup.** `src/instrumentation-node.ts` connects to the DB, prints the setup code, and if the agent is enabled warms the Gateway connection and starts the agent worker.
+
+**Agent (OpenClaw).** `src/lib/openclaw/` connects to the Gateway (token from env or `.data/secrets` in dev). `src/lib/agent/`:
+- `runs.ts`: `agent_runs` rows act as a DB-backed queue (enqueue / claim / finalize).
+- `worker.ts`: an in-process polling loop that claims queued runs, sends prompts (`prompt.ts`), waits on the Gateway, enforces token and time limits, posts results as task comments, and moves the task's status.
+- `auto.ts`: adding the agent tag to a task enqueues a run.
+- `continue.ts` / `continuation.ts`: a user comment on an agent task continues the same OpenClaw session unless it has grown too big.
+- `chat.ts` plus `src/app/api/agent/chat/`: the floating chat window, separate from task runs.
+
+Files named `*-shape.ts` (and other modules without `import "server-only"`) are pure and safe for Client Components and tests. Tests only import those, plus `docker/openclaw-bootstrap.mjs`.
+
+**Docker.** The default image runs `docker/supervisor.mjs`, which starts the OpenClaw Gateway (loopback only, as user `node`, home on `/data`) and the Next standalone server (as `nextjs`) in one container. `docker/openclaw-bootstrap.mjs` rewrites the Gateway's managed config on every start (allowed tools, bundled skills, context limits, web search provider), and the app's env never reaches the Gateway. `docker build --target plain .` builds the image without the agent; `TASKPANEL_AGENT=off` disables it at runtime. `next.config.ts` keeps PGlite and the OpenClaw/`ws` packages unbundled and traced in whole; keep that when adding similar runtime-resolved deps.
