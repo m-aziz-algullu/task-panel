@@ -9,7 +9,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { applyManagedConfig, ensureSecrets, gatewayEnv } from "../docker/openclaw-bootstrap.mjs";
+import { applyManagedConfig, ensureSecrets, ensureWebSearch, gatewayEnv } from "../docker/openclaw-bootstrap.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -51,6 +51,11 @@ const command = [process.execPath, cli];
 
 console.log(`[agent:dev] OpenClaw ${version}, HOME=${path.relative(root, home)}`);
 applyManagedConfig({ command, port, env, cwd: root });
+try {
+  for (const step of ensureWebSearch({ command, version, env, cwd: root })) console.log(`[agent:dev] ${step}`);
+} catch (error) {
+  console.log(`[agent:dev] Could not set up web search: ${error.message}`);
+}
 
 const gateway = spawn(process.execPath, [cli, "gateway"], { cwd: root, env, stdio: "inherit" });
 console.log(`[agent:dev] Gateway starting on 127.0.0.1:${port}; stop with Ctrl+C.`);

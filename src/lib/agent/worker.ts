@@ -7,7 +7,7 @@ import { GatewayUnavailableError, gatewayRequest } from "../openclaw/client";
 import { gatewayConnection } from "../openclaw/connection";
 import { moveTaskTo } from "../task-status";
 import type { LimitMode, RunStatus, Task } from "../types";
-import { continuesAfterRun, followUpInput, runTokens } from "./continuation";
+import { continuesAfterRun, continuesSession, followUpInput, runTokens, type SessionContext } from "./continuation";
 import { buildFollowUpPrompt, buildRunPrompt, parseRunReport } from "./prompt";
 import { errorText, turnReply } from "./reply";
 import {
@@ -24,7 +24,7 @@ import {
   type RunRow,
 } from "./runs";
 import { getAgentSettings } from "./settings";
-import type { AgentSettings } from "./settings-shape";
+import { effectiveThinking, type AgentSettings } from "./settings-shape";
 import { systemCommentBody } from "./system-comments";
 
 const { tags } = schema;
@@ -38,8 +38,11 @@ const DEADLINE_GRACE_MS = 60_000;
 type WaitResult = { status?: string; error?: unknown; message?: string };
 type TurnStarted = { runId?: string; runStarted?: boolean; runError?: { message?: string } };
 
-/** The conversation a follow-up was meant to continue doesn't exist (anymore). */
-class SessionMissingError extends Error {}
+/**
+ * A follow-up starts a new conversation instead: the one it was meant to continue
+ * doesn't exist (anymore), or it has grown too big to carry on.
+ */
+class NewSessionNeeded extends Error {}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -165,9 +168,9 @@ class AgentWorker {
         try {
           ({ started, run: current } = await this.sendFollowUp(db, run, task));
         } catch (error) {
-          // The conversation is gone (never started, deleted or reset): start a new
-          // one that sees the whole task and its comments instead.
-          if (!(error instanceof SessionMissingError) && !/session not found/i.test(errorText(error))) throw error;
+          // The conversation is gone (never started, deleted or reset) or too big:
+          // start a new one that sees the whole task and its comments instead.
+          if (!(error instanceof NewSessionNeeded) && !/session not found/i.test(errorText(error))) throw error;
           current = { ...run, sessionKey: newSessionKey(run.taskId), continuesRunId: null, usageBaseline: 0 };
           await updateRun(db, run.id, { sessionKey: current.sessionKey, continuesRunId: null, usageBaseline: 0 });
           started = await this.createSession(db, current, task, settings);
@@ -223,7 +226,7 @@ class AgentWorker {
         timeoutMs: run.timeoutSeconds * 1000,
         ...(run.agentId ? { agentId: run.agentId } : {}),
         ...(run.model ? { model: run.model } : {}),
-        ...(run.thinking ? { thinkingLevel: run.thinking } : {}),
+        thinkingLevel: effectiveThinking(run.thinking),
       },
       { timeoutMs: 60_000, connectTimeoutMs: 15_000 },
     );
@@ -239,21 +242,22 @@ class AgentWorker {
     // Token usage is per session; this run spends what's added from here on.
     // Checked first: patching a missing session would quietly create an empty one,
     // and the agent would get this short follow-up without the task's history.
-    const described = await gatewayRequest<{ session?: { sessionId?: string } | null }>("sessions.describe", {
+    const described = await gatewayRequest<{ session?: SessionContext & { sessionId?: string } }>("sessions.describe", {
       key: run.sessionKey,
       ...(run.agentId ? { agentId: run.agentId } : {}),
     });
-    if (!described.session?.sessionId) throw new SessionMissingError(run.sessionKey);
+    if (!described.session?.sessionId) throw new NewSessionNeeded(run.sessionKey);
+    // Every turn re-reads the whole conversation; the task's comments, the agent's
+    // earlier reports included, carry what matters into a new one for much less.
+    if (!continuesSession(described.session)) throw new NewSessionNeeded(run.sessionKey);
     const usageBaseline = (await sessionTokens(run.sessionKey)) ?? 0;
     await updateRun(db, run.id, { usageBaseline });
-    if (run.model || run.thinking) {
-      await gatewayRequest("sessions.patch", {
-        key: run.sessionKey,
-        ...(run.agentId ? { agentId: run.agentId } : {}),
-        ...(run.model ? { model: run.model } : {}),
-        ...(run.thinking ? { thinkingLevel: run.thinking } : {}),
-      });
-    }
+    await gatewayRequest("sessions.patch", {
+      key: run.sessionKey,
+      ...(run.agentId ? { agentId: run.agentId } : {}),
+      ...(run.model ? { model: run.model } : {}),
+      thinkingLevel: effectiveThinking(run.thinking),
+    });
     const started = await gatewayRequest<TurnStarted>(
       "sessions.send",
       {

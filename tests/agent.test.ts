@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 import { SESSION_KEY_PREFIX as GATEWAY_PREFIX } from "../docker/openclaw-bootstrap.mjs";
 import { buildChatMessage, chatFilesError, CHAT_SESSION_PREFIX, isChatSessionKey } from "@/lib/agent/chat-shape";
 import { claudeAuthFrom, claudeCliModels } from "@/lib/agent/claude-auth";
-import { commentContinuation, continuesAfterRun, followUpInput, runTokens } from "@/lib/agent/continuation";
+import {
+  commentContinuation,
+  continuesAfterRun,
+  continuesSession,
+  followUpInput,
+  MAX_CONTINUED_CONTEXT_TOKENS,
+  runTokens,
+} from "@/lib/agent/continuation";
 import { buildFollowUpPrompt, buildRunPrompt, parseRunReport, type PromptInput } from "@/lib/agent/prompt";
-import { DEFAULT_AGENT_SETTINGS, parseAgentSettings } from "@/lib/agent/settings-shape";
+import { DEFAULT_AGENT_SETTINGS, effectiveThinking, parseAgentSettings } from "@/lib/agent/settings-shape";
 import { parseSystemComment, systemCommentBody } from "@/lib/agent/system-comments";
 import en from "@/i18n/dictionaries/en";
 import { AGENT_SESSION_KEY_PREFIX } from "@/lib/types";
@@ -38,6 +45,17 @@ describe("buildRunPrompt", () => {
     expect(prompt).not.toContain("create_goal");
   });
 
+  it("steers the agent to web search and fetch instead of the browser", () => {
+    for (const prompt of [
+      buildRunPrompt(base),
+      buildFollowUpPrompt({ ...base, newComments: [] }),
+      buildChatMessage("İş ara", { first: true, fileNames: [] }),
+    ]) {
+      expect(prompt).toContain("web search");
+      expect(prompt).toContain("There is no browser here.");
+    }
+  });
+
   it("asks for an OpenClaw goal budget under a soft limit", () => {
     const prompt = buildRunPrompt({ ...base, limitMode: "soft" });
     expect(prompt).toContain("`create_goal`");
@@ -65,6 +83,12 @@ describe("agent settings", () => {
     const { simple, medium, hard } = DEFAULT_AGENT_SETTINGS.tokenPresets;
     expect(simple).toBeLessThan(medium);
     expect(medium).toBeLessThan(hard);
+  });
+
+  it("thinks at medium unless a level is chosen", () => {
+    expect(effectiveThinking(DEFAULT_AGENT_SETTINGS.thinking)).toBe("medium");
+    expect(effectiveThinking(null)).toBe("medium");
+    expect(effectiveThinking("low")).toBe("low");
   });
 });
 
@@ -251,6 +275,15 @@ describe("continuing the conversation", () => {
     expect(followUpInput({ ...input, extra: "ignored" } as typeof input)).toEqual(input);
     expect(runTokens(1_300_000, 1_000_000)).toBe(300_000);
     expect(runTokens(10, 50)).toBe(0);
+  });
+
+  it("starts over instead of carrying a conversation that has grown too big", () => {
+    expect(continuesSession({ totalTokens: 12_000, totalTokensFresh: true })).toBe(true);
+    expect(continuesSession({ totalTokens: MAX_CONTINUED_CONTEXT_TOKENS + 1, totalTokensFresh: true })).toBe(false);
+    expect(continuesSession({ totalTokens: MAX_CONTINUED_CONTEXT_TOKENS + 1 })).toBe(false);
+    // Unknown or stale size: keep the conversation.
+    expect(continuesSession({ totalTokens: 900_000, totalTokensFresh: false })).toBe(true);
+    expect(continuesSession({})).toBe(true);
   });
 });
 

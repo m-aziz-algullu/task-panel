@@ -95,6 +95,7 @@ const en = {
     agentId: "OpenClaw agent",
     model: "Model",
     defaultOption: "Default",
+    defaultThinking: "Default ({level})",
     thinking: "Thinking",
     timeout: "Time limit (min)",
     tokenLimit: "Token budget",

@@ -2,6 +2,7 @@
 // its first message. Pure, so it can be tested and shared with the browser.
 
 import { AGENT_SESSION_KEY_PREFIX } from "../types";
+import { WORK_RULES } from "./prompt";
 
 /** Chat sessions sit apart from task sessions, so the chat can't touch a task's conversation. */
 export const CHAT_SESSION_PREFIX = `${AGENT_SESSION_KEY_PREFIX}chat:`;
@@ -38,6 +39,7 @@ export function buildChatMessage(message: string, { first, fileNames }: { first:
     "Task Panel: the user is talking to you from the chat window of Task Panel, their personal kanban board. It's the same you that works on their tasks there.",
     "They may tell you about themselves, their preferences or how you should work, or ask you to change your own setup. Save what will matter for later tasks in your memory (USER.md for the user's profile and preferences, MEMORY.md for other lasting facts), so your task runs know it too. Files they send are in your workspace.",
     "Answer in the user's language.",
+    ...WORK_RULES,
     "",
     "---",
     "",
