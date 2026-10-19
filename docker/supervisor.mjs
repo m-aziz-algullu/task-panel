@@ -18,6 +18,7 @@ import {
   appEnv,
   applyManagedConfig,
   ensureSecrets,
+  ensureWebSearch,
   gatewayEnv,
 } from "./openclaw-bootstrap.mjs";
 
@@ -138,6 +139,21 @@ if (agentEnabled) {
   } catch (error) {
     // Keep going: the Gateway may still start with the config from last time.
     log(`Could not apply Task Panel's Gateway settings: ${error.message}`);
+  }
+  try {
+    const { version } = JSON.parse(fs.readFileSync(path.join(OPENCLAW_ROOT, "package.json"), "utf8"));
+    const steps = ensureWebSearch({
+      command: [process.execPath, path.join(OPENCLAW_ROOT, "openclaw.mjs")],
+      version,
+      env,
+      uid: node.uid,
+      gid: node.gid,
+      cwd: OPENCLAW_ROOT,
+    });
+    for (const step of steps) log(step);
+  } catch (error) {
+    // The agent still works without it; it just can't search the web.
+    log(`Could not set up web search: ${error.message}`);
   }
 
   let backoffMs = 1_000;

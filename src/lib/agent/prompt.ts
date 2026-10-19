@@ -17,6 +17,20 @@ type Limits = Pick<PromptInput, "tokenLimit" | "limitMode" | "timeoutSeconds">;
 
 const AUTHOR_LABEL = { user: "user", agent: "agent", system: "Task Panel" } as const;
 
+/**
+ * Every model call re-reads the whole conversation, so whatever a step pulls in
+ * is paid for again on every later step. The agent has no browser (its page
+ * snapshots run to tens of thousands of tokens). Shared with the panel chat.
+ */
+export const WORK_RULES = [
+  "- To look something up, use your web search tool; to read a page, use web fetch. There is no browser here.",
+  "- Keep it lean: as few steps and pages as the task needs, and only the parts of a page you need.",
+];
+
+function workSection(): string {
+  return ["## How to work", ...WORK_RULES].join("\n");
+}
+
 function reportSection(): string {
   return [
     "## Your report (required)",
@@ -69,7 +83,7 @@ export function buildRunPrompt(input: PromptInput): string {
 
   if (input.instructions.trim()) sections.push(`## Standing instructions from the user\n${input.instructions.trim()}`);
 
-  sections.push(reportSection(), limitsSection(input));
+  sections.push(workSection(), reportSection(), limitsSection(input));
   return sections.join("\n\n");
 }
 
@@ -93,6 +107,7 @@ export function buildFollowUpPrompt(input: FollowUpInput): string {
         )
       : "## New comments from the user\n(none: the user asked you to carry on with the task)",
     ["## The task as it stands", `Title: ${task.title}`, "Description:", task.description.trim() || "(none)"].join("\n"),
+    workSection(),
     reportSection(),
     limitsSection(input),
   ].join("\n\n");

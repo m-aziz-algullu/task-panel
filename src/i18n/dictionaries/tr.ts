@@ -95,6 +95,7 @@ const tr = {
     agentId: "OpenClaw ajanı",
     model: "Model",
     defaultOption: "Varsayılan",
+    defaultThinking: "Varsayılan ({level})",
     thinking: "Düşünme",
     timeout: "Süre sınırı (dk)",
     tokenLimit: "Token limiti",

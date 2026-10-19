@@ -1,9 +1,12 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { getDb } from "../db";
 import { gatewayRequest } from "../openclaw/client";
 import { buildChatMessage, CHAT_SESSION_PREFIX } from "./chat-shape";
 import { errorText, turnReply } from "./reply";
+import { getAgentSettings } from "./settings";
+import { effectiveThinking } from "./settings-shape";
 
 /** One chat turn's time limit; the browser stops waiting at the same point. */
 const TURN_TIMEOUT_MS = 30 * 60_000;
@@ -44,6 +47,8 @@ export async function startChatTurn({
   }));
   const text = buildChatMessage(message, { first: sessionKey == null, fileNames: files.map((file) => file.name) });
   const options = { timeoutMs: 120_000, connectTimeoutMs: 15_000 };
+  // The same thinking level as task runs.
+  const thinking = effectiveThinking((await getAgentSettings(await getDb())).thinking);
 
   let key = sessionKey;
   let started: TurnStarted;
@@ -57,6 +62,7 @@ export async function startChatTurn({
         label: `Task Panel chat · ${new Date().toISOString().slice(0, 16).replace("T", " ")} · ${key.slice(-8)}`,
         message: text,
         timeoutMs: TURN_TIMEOUT_MS,
+        thinkingLevel: thinking,
         ...(attachments.length ? { attachments } : {}),
       },
       options,
@@ -64,7 +70,7 @@ export async function startChatTurn({
   } else {
     started = await gatewayRequest<TurnStarted>(
       "sessions.send",
-      { key, message: text, timeoutMs: TURN_TIMEOUT_MS, ...(attachments.length ? { attachments } : {}) },
+      { key, message: text, thinking, timeoutMs: TURN_TIMEOUT_MS, ...(attachments.length ? { attachments } : {}) },
       options,
     );
   }

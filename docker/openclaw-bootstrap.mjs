@@ -35,6 +35,47 @@ export function ensureSecrets(secretsDir, env = process.env) {
 }
 
 /**
+ * The agent's tools: files and the shell, web search and fetch, its memory, goals
+ * (the soft token limit), PDFs and images, and skills. No browser, sessions,
+ * canvas, media generation or Gateway administration. Claude Code's own tools
+ * are held to the same list.
+ */
+export const AGENT_TOOLS = [
+  "ls",
+  "read",
+  "write",
+  "edit",
+  "apply_patch",
+  "exec",
+  "process",
+  "web_search",
+  "web_fetch",
+  "memory_search",
+  "memory_get",
+  "create_goal",
+  "get_goal",
+  "update_goal",
+  "pdf",
+  "view_image",
+  "skills_search",
+  "skills_read",
+];
+
+/** OpenClaw's bundled skills the agent keeps; skills the user installs are not affected. */
+export const AGENT_BUNDLED_SKILLS = ["clawhub", "github", "gh-issues", "notion", "skill-creator", "weather"];
+
+/** Skills that come with plugins rather than bundled, for tools the agent doesn't have. */
+const PLUGIN_SKILLS_OFF = ["browser-automation", "canvas"];
+
+export const AGENT_CONTEXT_TOKENS = 150_000;
+
+/** OpenClaw fills in the rest of each entry from its catalog. */
+const CAPPED_MODELS = [
+  { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+  { id: "claude-opus-5-5", name: "Claude Opus 5.5" },
+];
+
+/**
  * Config keys Task Panel owns. Written on every start so the Gateway always
  * listens where the app expects it, on loopback only; every other key belongs to
  * the user (and the agent settings page) and is never touched here. The token
@@ -52,6 +93,17 @@ export function managedConfig({ port = GATEWAY_PORT, container = false, browserS
     { path: "gateway.bind", value: "loopback" },
     { path: "gateway.port", value: port },
     { path: "gateway.auth.mode", value: "token" },
+    // Every model call carries the definitions of every tool and bundled skill the
+    // agent has, so it gets only what Task Panel's work needs.
+    { path: "tools.allow", value: AGENT_TOOLS },
+    { path: "skills.allowBundled", value: AGENT_BUNDLED_SKILLS },
+    ...PLUGIN_SKILLS_OFF.map((name) => ({ path: `skills.entries.${name}.enabled`, value: false })),
+    // Claude Code compacts the conversation at this size instead of letting it
+    // grow to the model's 1M window, which every later step would re-read.
+    {
+      path: "models.providers.anthropic.models",
+      value: CAPPED_MODELS.map((model) => ({ ...model, contextTokens: AGENT_CONTEXT_TOKENS })),
+    },
     ...(container
       ? [
           { path: "browser.noSandbox", value: !browserSandbox },
@@ -78,21 +130,57 @@ export function applyManagedConfig({ command, port, container, browserSandbox, e
       fs.chownSync(dir, uid, gid);
       fs.chownSync(batchFile, uid, gid);
     }
-    const [program, ...args] = command;
-    const result = spawnSync(program, [...args, "config", "set", "--batch-file", batchFile], {
-      env,
-      uid,
-      gid,
-      cwd,
-      encoding: "utf8",
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      throw new Error(`openclaw config set exited with ${result.status}: ${(result.stderr || result.stdout).trim()}`);
-    }
+    const result = runCli({ command, env, uid, gid, cwd }, ["config", "set", "--batch-file", batchFile]);
+    if (result.status !== 0) throw cliError("config set", result);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function runCli({ command, env, uid, gid, cwd }, args, timeout = 60_000) {
+  const [program, ...prefix] = command;
+  const result = spawnSync(program, [...prefix, ...args], { env, uid, gid, cwd, encoding: "utf8", timeout });
+  if (result.error) throw result.error;
+  return result;
+}
+
+function cliError(what, result) {
+  return new Error(`openclaw ${what} exited with ${result.status}: ${(result.stderr || result.stdout).trim()}`);
+}
+
+/** Key-free web search for the agent, so it doesn't open web pages in a browser to look things up. */
+export const SEARCH_PLUGIN = { id: "parallel", spec: "@openclaw/parallel-plugin", provider: "parallel-free" };
+
+/**
+ * Installs the search plugin (same version as OpenClaw) when it's missing and
+ * selects its free provider when no search provider is set. A provider the user
+ * picked is left alone. Returns what it did, for the log.
+ */
+export function ensureWebSearch({ command, version, env, uid, gid, cwd }) {
+  const options = { command, env, uid, gid, cwd };
+  const done = [];
+  const list = runCli(options, ["plugins", "list", "--json"]);
+  if (list.status !== 0) throw cliError("plugins list", list);
+  const { plugins = [] } = JSON.parse(list.stdout.slice(list.stdout.indexOf("{")));
+  if (!plugins.some((plugin) => plugin.id === SEARCH_PLUGIN.id)) {
+    const install = runCli(options, ["plugins", "install", `${SEARCH_PLUGIN.spec}@${version}`], 5 * 60_000);
+    if (install.status !== 0) throw cliError("plugins install", install);
+    done.push(`installed ${SEARCH_PLUGIN.spec}@${version}`);
+  }
+  const current = runCli(options, ["config", "get", "tools.web.search.provider", "--json"]);
+  if (current.status !== 0 && /unset/i.test(current.stdout + current.stderr)) {
+    const set = runCli(options, [
+      "config",
+      "set",
+      "tools.web.search.provider",
+      JSON.stringify(SEARCH_PLUGIN.provider),
+      "--strict-json",
+      "--expect-current-absent",
+    ]);
+    if (set.status !== 0) throw cliError("config set", set);
+    done.push(`web search provider set to ${SEARCH_PLUGIN.provider}`);
+  }
+  return done;
 }
 
 /**

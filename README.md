@@ -75,6 +75,8 @@ The default Docker image also runs a bundled [OpenClaw](https://openclaw.ai) Gat
 - The agent's memory, sessions, provider keys and skills live under `/data`. **Mount a volume at `/data`**, or they are reset on every deploy.
 - Plan for at least 2 GB of RAM for this image.
 - The agent's browser (Chromium) runs with `browser.noSandbox` and `--disable-dev-shm-usage`: Chromium's own sandbox needs privileges Docker doesn't grant, and Docker's `/dev/shm` is only 64 MB. The container and its unprivileged user still isolate it. To keep Chromium's sandbox instead, give the container `--cap-add=SYS_ADMIN` (or a seccomp profile that allows it) and set `TASKPANEL_BROWSER_SANDBOX=on`.
+- To keep every model call small, the agent gets only the tools Task Panel's work needs (`tools.allow`: files, the shell, `web_search`, `web_fetch`, memory, goals, PDFs, images and skills; no browser, sessions, canvas or media generation), a few bundled skills (`skills.allowBundled`; skills you install are not affected), and a 150k-token context for Sonnet 5.5 and Opus 5.5 (`models.providers.anthropic.models[].contextTokens`), at which Claude Code compacts the conversation. These are written on every start; to give the agent more, change `managedConfig` in `docker/openclaw-bootstrap.mjs`.
+- The agent searches the web with OpenClaw's `web_search` and reads pages with `web_fetch`. Each start installs the Parallel plugin (`@openclaw/parallel-plugin`, same version as OpenClaw) if it's missing, and picks its key-free `parallel-free` search provider when no provider is set. A provider you choose yourself (`tools.web.search.provider`) is kept.
 - If you don't want the agent, build the smaller image with `docker build --target plain .`, or set `TASKPANEL_AGENT=off`.
 
 ### Docker Compose

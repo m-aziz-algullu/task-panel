@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
 import type { AgentOptions } from "@/lib/agent/options";
 import { claudeAuthLabel } from "./agent-page";
-import { MAX_TOKEN_LIMIT, MIN_TOKEN_LIMIT } from "@/lib/agent/settings-shape";
+import { DEFAULT_THINKING, MAX_TOKEN_LIMIT, MIN_TOKEN_LIMIT } from "@/lib/agent/settings-shape";
 import {
   ACTIVE_RUN_STATUSES,
   LIMIT_MODES,
@@ -284,7 +284,7 @@ export function AgentRunPanel({ taskId, run, onChange }: AgentRunPanelProps) {
                 value={form.thinking ?? ""}
                 onChange={(event) => set("thinking", event.target.value || null)}
               >
-                <option value="">{t("agentRun.defaultOption")}</option>
+                <option value="">{t("agentRun.defaultThinking", { level: DEFAULT_THINKING })}</option>
                 {thinkingLevels.map((level) => (
                   <option key={level} value={level}>
                     {level}

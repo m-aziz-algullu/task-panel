@@ -46,6 +46,16 @@ export function parseAgentSettings(raw: unknown): AgentSettings {
   return agentSettingsSchema.parse(value);
 }
 
+/**
+ * Thinking level when none is chosen. Models default to more (Sonnet 5.5 to
+ * `high`), and thinking is output, the dearest tokens of a run.
+ */
+export const DEFAULT_THINKING = "medium";
+
+export function effectiveThinking(thinking: string | null | undefined): string {
+  return thinking || DEFAULT_THINKING;
+}
+
 export function presetLimit(settings: AgentSettings, preset: TokenPreset): number {
   return settings.tokenPresets[preset];
 }

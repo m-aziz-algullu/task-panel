@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { appEnv, ensureSecrets, gatewayEnv, managedConfig } from "../docker/openclaw-bootstrap.mjs";
+import { AGENT_CONTEXT_TOKENS, appEnv, ensureSecrets, gatewayEnv, managedConfig } from "../docker/openclaw-bootstrap.mjs";
 
 const dirs: string[] = [];
 const tempDir = () => {
@@ -33,12 +33,26 @@ describe("ensureSecrets", () => {
 describe("managedConfig", () => {
   it("keeps the Gateway on loopback with token auth and leaves hooks alone", () => {
     const config = Object.fromEntries(managedConfig().map((entry) => [entry.path, entry.value]));
-    expect(config).toEqual({
+    expect(config).toMatchObject({
       "gateway.mode": "local",
       "gateway.bind": "loopback",
       "gateway.port": 18789,
       "gateway.auth.mode": "token",
     });
+    expect(Object.keys(config).some((key) => key.startsWith("hooks"))).toBe(false);
+    expect(config["browser.noSandbox"]).toBeUndefined();
+  });
+
+  it("gives the agent only the tools and bundled skills it needs, and a bounded context", () => {
+    const config = Object.fromEntries(managedConfig().map((entry) => [entry.path, entry.value]));
+    const tools = config["tools.allow"] as string[];
+    expect(tools).toEqual(expect.arrayContaining(["web_search", "web_fetch", "memory_search", "create_goal"]));
+    expect(tools).not.toContain("browser");
+    expect(tools).not.toContain("sessions_spawn");
+    expect(config["skills.allowBundled"]).not.toContain("browser-automation");
+    const models = config["models.providers.anthropic.models"] as { id: string; contextTokens: number }[];
+    expect(models.map((model) => model.id)).toContain("claude-sonnet-5-5");
+    expect(models.every((model) => model.contextTokens === AGENT_CONTEXT_TOKENS)).toBe(true);
   });
 
   it("lets the browser start inside the container", () => {

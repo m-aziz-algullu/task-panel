@@ -53,3 +53,20 @@ export function followUpInput(run: AgentRunInput): AgentRunInput {
 export function runTokens(sessionTotal: number, baseline: number): number {
   return Math.max(0, sessionTotal - baseline);
 }
+
+/**
+ * Beyond this a follow-up starts a new conversation. Every model call re-reads
+ * the whole context, and once the prompt cache has expired (minutes after a run)
+ * all of it is paid for again, so a one-line comment on a long run cost as much
+ * as tens of thousands of tokens.
+ */
+export const MAX_CONTINUED_CONTEXT_TOKENS = 50_000;
+
+/** What OpenClaw's session row says about its context: `totalTokens` is the current prompt's size. */
+export type SessionContext = { totalTokens?: number | null; totalTokensFresh?: boolean | null };
+
+/** Whether a follow-up carries on in this session; when its size is unknown, it does. */
+export function continuesSession(session: SessionContext): boolean {
+  if (session.totalTokensFresh === false || typeof session.totalTokens !== "number") return true;
+  return session.totalTokens <= MAX_CONTINUED_CONTEXT_TOKENS;
+}
