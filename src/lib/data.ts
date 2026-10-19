@@ -6,9 +6,19 @@ import { getDb, schema, type Db } from "./db";
 import { DEFAULT_TIME_ZONE, addDays, dayKey, isDayKey, startOfDay } from "./dates";
 import { requireSession } from "./session";
 import { agentEnabled } from "./openclaw/connection";
-import { ACTIVE_RUN_STATUSES, type Clock, type CommentAuthor, type RunStatus, type Status, type Tag, type Task, type TaskComment } from "./types";
+import {
+  ACTIVE_RUN_STATUSES,
+  type Clock,
+  type CommentAuthor,
+  type Routine,
+  type RunStatus,
+  type Status,
+  type Tag,
+  type Task,
+  type TaskComment,
+} from "./types";
 
-const { tasks, tags, taskTags, taskComments, agentRuns } = schema;
+const { tasks, tags, taskTags, taskComments, agentRuns, routines } = schema;
 
 export function appTimeZone(): string {
   const tz = process.env.APP_TIMEZONE || DEFAULT_TIME_ZONE;
@@ -113,6 +123,13 @@ export async function listTags(db: Db): Promise<Tag[]> {
     .orderBy(asc(tags.name));
 }
 
+export async function listRoutines(db: Db): Promise<Routine[]> {
+  return db
+    .select({ id: routines.id, title: routines.title, body: routines.body })
+    .from(routines)
+    .orderBy(asc(routines.title), asc(routines.id));
+}
+
 /** Session check plus a request-time anchor, since "today" depends on the clock. */
 async function requestScope(): Promise<Clock> {
   await connection();
@@ -125,11 +142,12 @@ export async function getBoardData() {
   const clock = await requestScope();
   const db = await getDb();
   const visible = or(ne(tasks.status, "done"), gte(tasks.completedAt, startOfDay(clock.today, clock.timeZone)));
-  const [taskList, tagList] = await Promise.all([
+  const [taskList, tagList, routineList] = await Promise.all([
     loadTasks(db, visible, [asc(tasks.position), desc(tasks.id)], clock.timeZone),
     listTags(db),
+    listRoutines(db),
   ]);
-  return { tasks: taskList, tags: tagList, clock, agent: agentEnabled() };
+  return { tasks: taskList, tags: tagList, routines: routineList, clock, agent: agentEnabled() };
 }
 
 export async function getCompletedData() {

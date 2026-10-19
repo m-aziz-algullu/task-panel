@@ -4,8 +4,8 @@ import { BoardSkeleton } from "@/components/skeletons";
 import { getBoardData } from "@/lib/data";
 
 async function BoardData() {
-  const { tasks, tags, clock, agent } = await getBoardData();
-  return <Board tasks={tasks} tags={tags} clock={clock} agent={agent} />;
+  const { tasks, tags, routines, clock, agent } = await getBoardData();
+  return <Board tasks={tasks} tags={tags} routines={routines} clock={clock} agent={agent} />;
 }
 
 export default function BoardPage() {

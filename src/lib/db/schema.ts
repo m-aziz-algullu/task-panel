@@ -75,6 +75,15 @@ export const agentRuns = pgTable("agent_runs", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
 
+export const routines = pgTable("routines", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  /** Markdown notes: the steps, links, when it's due. */
+  body: text("body").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
