@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { createTag, createTask, deleteTask, updateTask } from "@/app/actions";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
@@ -93,7 +93,17 @@ function InlineTagCreator({ onCreated }: { onCreated: (tag: Tag) => void }) {
 }
 
 /** Comments and the agent panel of a saved task; they share one polled feed. */
-function TaskActivity({ task, clock, agent }: { task: Task; clock: Clock; agent: boolean }) {
+function TaskActivity({
+  task,
+  clock,
+  agent,
+  onDraftChange,
+}: {
+  task: Task;
+  clock: Clock;
+  agent: boolean;
+  onDraftChange: (hasDraft: boolean) => void;
+}) {
   const { comments, setComments, run, failed, reload } = useTaskActivity(task.id);
   return (
     <>
@@ -105,6 +115,7 @@ function TaskActivity({ task, clock, agent }: { task: Task; clock: Clock; agent:
         setComments={setComments}
         loadFailed={failed}
         onAdded={() => void reload()}
+        onDraftChange={onDraftChange}
       />
     </>
   );
@@ -124,6 +135,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
   const { t, intlLocale } = useI18n();
   const [error, setError] = useState<MessageKey | null>(null);
   const [pending, startTransition] = useTransition();
+  const hasCommentDraft = useRef(false);
   const dayLabels = { today: t("days.today"), tomorrow: t("days.tomorrow"), yesterday: t("days.yesterday") };
 
   const set = <K extends keyof TaskInput>(key: K, value: TaskInput[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -132,6 +144,8 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
 
   const save = () => {
     if (!form.title.trim()) return setError("errors.titleRequired");
+    // Saving closes the dialog, which would silently drop a comment typed but not sent.
+    if (hasCommentDraft.current && !confirm(t("task.unsentComment"))) return;
     startTransition(async () => {
       const result = task ? await updateTask(task.id, form) : await createTask(form);
       if (!result.ok) return setError(result.error);
@@ -197,7 +211,14 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
                 )}
               </dl>
             )}
-            {task && <TaskActivity task={task} clock={clock} agent={agent} />}
+            {task && (
+              <TaskActivity
+                task={task}
+                clock={clock}
+                agent={agent}
+                onDraftChange={(hasDraft) => (hasCommentDraft.current = hasDraft)}
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-5">
