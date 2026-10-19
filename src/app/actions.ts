@@ -20,9 +20,12 @@ import { completedAtFor, topPosition } from "@/lib/task-status";
 import {
   LIMIT_MODES,
   MAX_COMMENT_LENGTH,
+  MAX_ROUTINE_BODY_LENGTH,
   STATUSES,
   type AgentRun,
   type AgentRunInput,
+  type Routine,
+  type RoutineInput,
   type Status,
   type Tag,
   type TagInput,
@@ -32,7 +35,7 @@ import {
 } from "@/lib/types";
 import type { MessageKey } from "@/i18n/translate";
 
-const { tasks, tags, taskTags, taskComments } = schema;
+const { tasks, tags, taskTags, taskComments, routines } = schema;
 
 /** Errors are message keys; the browser translates them into the viewer's language. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: MessageKey };
@@ -78,6 +81,11 @@ const agentRunInput = z.object({
 const tagInput = z.object({
   name: z.string().trim().min(1, msg("errors.tagNameRequired")).max(40, msg("errors.tagNameTooLong")),
   color: z.string().refine(isHexColor, msg("errors.colorInvalid")),
+});
+
+const routineInput = z.object({
+  title: z.string().trim().min(1, msg("errors.titleRequired")).max(300, msg("errors.titleTooLong")),
+  body: z.string().trim().max(MAX_ROUTINE_BODY_LENGTH, msg("errors.routineTooLong")),
 });
 
 function fail(error: unknown): { ok: false; error: MessageKey } {
@@ -367,6 +375,52 @@ export async function deleteTag(rawId: number): Promise<ActionResult> {
   try {
     const db = await getDb();
     await db.delete(tags).where(eq(tags.id, id.parse(rawId)));
+    refresh();
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+const routineColumns = { id: routines.id, title: routines.title, body: routines.body };
+
+export async function createRoutine(raw: RoutineInput): Promise<ActionResult<Routine>> {
+  await requireSession();
+  try {
+    const input = routineInput.parse(raw);
+    const db = await getDb();
+    const [routine] = await db.insert(routines).values(input).returning(routineColumns);
+    refresh();
+    return { ok: true, data: routine };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function updateRoutine(rawId: number, raw: RoutineInput): Promise<ActionResult<Routine>> {
+  await requireSession();
+  try {
+    const routineId = id.parse(rawId);
+    const input = routineInput.parse(raw);
+    const db = await getDb();
+    const [routine] = await db
+      .update(routines)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(routines.id, routineId))
+      .returning(routineColumns);
+    if (!routine) return { ok: false, error: "errors.routineNotFound" };
+    refresh();
+    return { ok: true, data: routine };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteRoutine(rawId: number): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const db = await getDb();
+    await db.delete(routines).where(eq(routines.id, id.parse(rawId)));
     refresh();
     return { ok: true, data: undefined };
   } catch (error) {

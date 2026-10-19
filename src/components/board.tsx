@@ -25,9 +25,10 @@ import { moveTask } from "@/app/actions";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
 import { placeInColumn } from "@/lib/ordering";
-import { STATUSES, STATUS_META, type Clock, type Status, type Tag, type Task } from "@/lib/types";
+import { STATUSES, STATUS_META, type Clock, type Routine, type Status, type Tag, type Task } from "@/lib/types";
 import { EMPTY_FILTERS, FilterBar, isFiltering, matchesFilters, shortcutBlocked, type Filters } from "./filters";
 import { DoneDayPrompt, type DoneResolution } from "./done-day-prompt";
+import { RoutineDialog, RoutinesColumn } from "./routines";
 import { TagManager } from "./tag-manager";
 import { CARD_WIDTH, COLUMN_WIDTH } from "./card-size";
 import { TaskCard } from "./task-card";
@@ -37,7 +38,12 @@ import { useDayRollover } from "./use-day-rollover";
 
 type PendingMove = { movedId: number; from: Status; to: Status; order: number[] };
 
-type DialogState ={ kind: "create"; status: Status } | { kind: "edit"; taskId: number } | { kind: "tags" } | null;
+type DialogState =
+  | { kind: "create"; status: Status }
+  | { kind: "edit"; taskId: number }
+  | { kind: "tags" }
+  | { kind: "routine"; routineId: number | null }
+  | null;
 
 const COLUMN_PREFIX = "col:";
 const columnId = (status: Status) => `${COLUMN_PREFIX}${status}`;
@@ -140,11 +146,13 @@ function Column({
 export function Board({
   tasks: serverTasks,
   tags,
+  routines,
   clock,
   agent,
 }: {
   tasks: Task[];
   tags: Tag[];
+  routines: Routine[];
   clock: Clock;
   agent: boolean;
 }) {
@@ -307,6 +315,8 @@ export function Board({
 
   const activeTask = activeId == null ? null : tasks.find((task) => task.id === activeId);
   const editingTask = dialog?.kind === "edit" ? tasks.find((task) => task.id === dialog.taskId) : undefined;
+  const openRoutine =
+    dialog?.kind === "routine" && dialog.routineId != null ? routines.find((routine) => routine.id === dialog.routineId) : undefined;
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
@@ -368,6 +378,11 @@ export function Board({
               </Column>
             );
           })}
+          <RoutinesColumn
+            routines={routines}
+            onOpen={(routine) => setDialog({ kind: "routine", routineId: routine.id })}
+            onAdd={() => setDialog({ kind: "routine", routineId: null })}
+          />
         </div>
         <DragOverlay>
           {activeTask && (
@@ -402,6 +417,9 @@ export function Board({
         />
       )}
       {dialog?.kind === "tags" && <TagManager tags={tags} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "routine" && (dialog.routineId == null || openRoutine) && (
+        <RoutineDialog key={dialog.routineId ?? "new"} routine={openRoutine} onClose={() => setDialog(null)} />
+      )}
       {pendingDone && (
         <DoneDayPrompt
           task={tasks.find((task) => task.id === pendingDone.movedId)!}

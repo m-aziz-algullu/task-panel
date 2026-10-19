@@ -148,4 +148,17 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `ALTER TABLE agent_runs ADD CONSTRAINT agent_runs_trigger_check CHECK (trigger IN ('manual', 'tag', 'comment'))`,
     ],
   },
+  {
+    version: 10,
+    statements: [
+      // Recurring chores kept beside the board, to look up when their day comes.
+      `CREATE TABLE routines (
+        id serial PRIMARY KEY,
+        title text NOT NULL,
+        body text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`,
+    ],
+  },
 ];

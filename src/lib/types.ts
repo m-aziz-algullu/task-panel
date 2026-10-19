@@ -121,6 +121,21 @@ export type AgentRunInput = {
   limitMode: LimitMode;
 };
 
+export const MAX_ROUTINE_BODY_LENGTH = 10_000;
+
+/** A recurring chore kept on the board; not a task, so it has no status or day. */
+export type Routine = {
+  id: number;
+  title: string;
+  /** Markdown notes. */
+  body: string;
+};
+
+export type RoutineInput = {
+  title: string;
+  body: string;
+};
+
 export type TagInput = {
   name: string;
   color: string;
