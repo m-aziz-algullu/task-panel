@@ -72,6 +72,7 @@ Production runs on **PostgreSQL only**: the server refuses to start without `DAT
 
 The default Docker image also runs a bundled [OpenClaw](https://openclaw.ai) Gateway in the same container as Task Panel:
 - The Gateway is reachable only from inside the container (loopback) and generates its own token on first start. Only model provider keys and OpenClaw's own settings are passed on to it; `DATABASE_URL` and the app's other variables stay with Task Panel.
+- OpenClaw's own web interface (Control UI: settings, sessions, agents, files) opens from the **Agent** page with **Open OpenClaw's interface**. It's served at `/openclaw/` on Task Panel's own address, only to a signed-in user; no SSH tunnel or extra port is needed. Settings Task Panel writes on every start (listed on that page) don't stick when changed there.
 - The agent's memory, sessions, provider keys and skills live under `/data`. **Mount a volume at `/data`**, or they are reset on every deploy.
 - Plan for at least 2 GB of RAM for this image.
 - The agent's browser (Chromium) runs with `browser.noSandbox` and `--disable-dev-shm-usage`: Chromium's own sandbox needs privileges Docker doesn't grant, and Docker's `/dev/shm` is only 64 MB. The container and its unprivileged user still isolate it. To keep Chromium's sandbox instead, give the container `--cap-add=SYS_ADMIN` (or a seccomp profile that allows it) and set `TASKPANEL_BROWSER_SANDBOX=on`.
@@ -145,7 +146,7 @@ src/app/[lang]/(panel)/        Board and Completed pages
 src/app/[lang]/(auth)/         Setup (first admin), sign-in, sign-out
 src/app/actions.ts             Server Actions for tasks, tags and moves
 src/app/api/health/            Health check
-docker/                        Container supervisor and bundled OpenClaw setup
+docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
 src/proxy.ts                   Locale redirects and session-cookie gate
 src/i18n/                      Dictionaries (en, tr) and helpers
