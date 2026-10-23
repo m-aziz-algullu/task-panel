@@ -1,7 +1,19 @@
 "use client";
 
-import { Bot, FileText, Paperclip, SendHorizontal, Square, SquarePen, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Maximize2,
+  Minimize2,
+  Paperclip,
+  SendHorizontal,
+  Square,
+  SquarePen,
+  X,
+} from "lucide-react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
 import { chatFilesError, MAX_CHAT_MESSAGE_LENGTH } from "@/lib/agent/chat-shape";
@@ -24,6 +36,45 @@ type TurnState =
 /** The browser gives up on a turn a little after the agent's own 30 minute limit. */
 const TURN_DEADLINE_MS = 31 * 60_000;
 
+/** Minimized keeps the chat going in a tab at the bottom; closed ends it. */
+type ChatMode = "closed" | "open" | "minimized";
+
+type ChatSize = { width: number; height: number };
+
+const SIZE_KEY = "task-panel:chat-size";
+const MIN_WIDTH = 320;
+const MIN_HEIGHT = 320;
+// Matches the CSS caps on the window: 1rem on each side, and below the header.
+const WIDTH_MARGIN = 32;
+const HEIGHT_MARGIN = 96;
+
+function clampSize({ width, height }: ChatSize): ChatSize {
+  return {
+    width: Math.round(Math.max(MIN_WIDTH, Math.min(width, window.innerWidth - WIDTH_MARGIN))),
+    height: Math.round(Math.max(MIN_HEIGHT, Math.min(height, window.innerHeight - HEIGHT_MARGIN))),
+  };
+}
+
+function readSize(): ChatSize | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(SIZE_KEY) ?? "null") as Partial<ChatSize> | null;
+    return typeof value?.width === "number" && typeof value.height === "number"
+      ? { width: value.width, height: value.height }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSize(size: ChatSize | null) {
+  try {
+    if (size) localStorage.setItem(SIZE_KEY, JSON.stringify(size));
+    else localStorage.removeItem(SIZE_KEY);
+  } catch {
+    // The size is a convenience; without storage it resets on reload.
+  }
+}
+
 let nextId = 1;
 
 async function errorKey(response: Response): Promise<MessageKey> {
@@ -39,10 +90,15 @@ async function errorKey(response: Response): Promise<MessageKey> {
  * The chat with the agent, bottom right on every panel page. Each time it opens
  * it is a new OpenClaw session: nothing of earlier chats is shown, while what the
  * agent saved to its memory carries over, to later chats and to task runs alike.
+ * Minimizing it to a tab keeps the chat, and a running turn, going.
  */
 export function AgentChat() {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<ChatMode>("closed");
+  const [maximized, setMaximized] = useState(false);
+  const [size, setSize] = useState<ChatSize | null>(null);
+  // How many messages there were when the chat was minimized, to flag new ones on the tab.
+  const [seen, setSeen] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionKey, setSessionKey] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
@@ -73,16 +129,61 @@ export function AgentChat() {
   const close = () => {
     // A turn still running finishes on its own: the agent may be saving to its memory.
     reset();
-    setOpen(false);
+    setMaximized(false);
+    setMode("closed");
   };
 
+  const show = () => {
+    if (mode === "closed") setSize(readSize());
+    setMode("open");
+  };
+
+  const minimize = () => {
+    setSeen(messages.length);
+    setMode("minimized");
+  };
+
+  // Grows the window from its left and top edges, as it sits bottom right.
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>, edges: { x: boolean; y: boolean }) => {
+    const handle = event.currentTarget;
+    if (event.button !== 0 || !handle.parentElement) return;
+    event.preventDefault();
+    const start = handle.parentElement.getBoundingClientRect();
+    const { clientX, clientY } = event;
+    let next: ChatSize = { width: start.width, height: start.height };
+    const move = (moved: PointerEvent) => {
+      next = clampSize({
+        width: edges.x ? start.width + clientX - moved.clientX : start.width,
+        height: edges.y ? start.height + clientY - moved.clientY : start.height,
+      });
+      setSize(next);
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      saveSize(next);
+    };
+    handle.setPointerCapture(event.pointerId);
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  };
+
+  const resetSize = () => {
+    setSize(null);
+    saveSize(null);
+  };
+
+  const open = mode === "open";
+
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
-  }, [messages, runId]);
+    if (open) bottom.current?.scrollIntoView({ block: "end" });
+  }, [open, messages, runId]);
 
   useEffect(() => {
     if (open) textarea.current?.focus();
-  }, [open, runId]);
+  }, [open, maximized, runId]);
 
   // Follows the running turn until the agent answers.
   useEffect(() => {
@@ -179,11 +280,51 @@ export function AgentChat() {
     setError(fileError ? `errors.${fileError}` : null);
   };
 
+  if (mode === "minimized") {
+    const unread = messages.length > seen;
+    return (
+      <div
+        role="region"
+        aria-label={t("chat.title")}
+        className="fixed right-4 bottom-0 z-40 flex items-center rounded-t-lg border-2 border-b-0 border-agent/60 bg-surface shadow-lg"
+      >
+        <button
+          type="button"
+          onClick={show}
+          className="flex cursor-pointer items-center gap-2 rounded-tl-md py-1.5 pr-1 pl-2 text-sm font-semibold hover:bg-agent/10"
+          aria-label={t("chat.restore")}
+          title={t("chat.restore")}
+        >
+          <span className="relative inline-flex size-6 items-center justify-center rounded-full bg-agent text-white">
+            <Bot className="size-3.5" />
+            {unread && (
+              <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2 border-surface bg-red-500">
+                <span className="sr-only">{t("chat.unread")}</span>
+              </span>
+            )}
+          </span>
+          {t("chat.title")}
+          {runId && (
+            <span className="inline-flex gap-0.5" aria-label={t("chat.thinking")}>
+              <span className="size-1 animate-bounce rounded-full bg-agent [animation-delay:-0.3s]" />
+              <span className="size-1 animate-bounce rounded-full bg-agent [animation-delay:-0.15s]" />
+              <span className="size-1 animate-bounce rounded-full bg-agent" />
+            </span>
+          )}
+          <ChevronUp className="size-4 text-muted" />
+        </button>
+        <button type="button" className="icon-btn mr-1" onClick={close} aria-label={t("chat.close")} title={t("chat.close")}>
+          <X className="size-4" />
+        </button>
+      </div>
+    );
+  }
+
   if (!open) {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={show}
         className="fixed right-3 bottom-7 z-40 inline-flex size-13 cursor-pointer items-center justify-center rounded-full bg-agent text-white shadow-lg shadow-agent/30 transition hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-agent"
         aria-label={t("chat.open")}
         title={t("chat.open")}
@@ -197,11 +338,41 @@ export function AgentChat() {
     <section
       role="dialog"
       aria-label={t("chat.title")}
-      className="fixed inset-x-2 top-16 bottom-2 z-40 flex flex-col overflow-hidden rounded-xl border-2 border-agent/60 bg-surface shadow-2xl sm:inset-x-auto sm:top-auto sm:right-4 sm:bottom-4 sm:h-[min(36rem,calc(100dvh-6rem))] sm:w-[24rem]"
+      className={`fixed z-40 flex flex-col overflow-hidden rounded-xl border-2 border-agent/60 bg-surface shadow-2xl ${
+        maximized
+          ? "inset-2 sm:inset-4"
+          : "inset-x-2 top-16 bottom-2 sm:inset-x-auto sm:top-auto sm:right-4 sm:bottom-4 sm:h-[min(var(--chat-h,36rem),calc(100dvh-6rem))] sm:w-[min(var(--chat-w,24rem),calc(100vw-2rem))]"
+      }`}
+      style={size ? ({ "--chat-w": `${size.width}px`, "--chat-h": `${size.height}px` } as CSSProperties) : undefined}
       onKeyDown={(event) => {
-        if (event.key === "Escape") close();
+        if (event.key === "Escape") minimize();
       }}
     >
+      {!maximized && (
+        <>
+          <div
+            aria-hidden
+            title={t("chat.resize")}
+            className="absolute inset-x-3 top-0 z-10 hidden h-1.5 cursor-ns-resize touch-none sm:block"
+            onPointerDown={(event) => startResize(event, { x: false, y: true })}
+            onDoubleClick={resetSize}
+          />
+          <div
+            aria-hidden
+            title={t("chat.resize")}
+            className="absolute inset-y-3 left-0 z-10 hidden w-1.5 cursor-ew-resize touch-none sm:block"
+            onPointerDown={(event) => startResize(event, { x: true, y: false })}
+            onDoubleClick={resetSize}
+          />
+          <div
+            aria-hidden
+            title={t("chat.resize")}
+            className="absolute top-0 left-0 z-10 hidden size-3 cursor-nwse-resize touch-none sm:block"
+            onPointerDown={(event) => startResize(event, { x: true, y: true })}
+            onDoubleClick={resetSize}
+          />
+        </>
+      )}
       <header className="flex items-center gap-2 border-b border-border bg-agent/10 px-3 py-2">
         <span className="inline-flex size-7 items-center justify-center rounded-full bg-agent text-white">
           <Bot className="size-4" />
@@ -216,6 +387,24 @@ export function AgentChat() {
           title={t("chat.newChat")}
         >
           <SquarePen className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={minimize}
+          aria-label={t("chat.minimize")}
+          title={t("chat.minimize")}
+        >
+          <ChevronDown className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => setMaximized((value) => !value)}
+          aria-label={t(maximized ? "chat.unmaximize" : "chat.maximize")}
+          title={t(maximized ? "chat.unmaximize" : "chat.maximize")}
+        >
+          {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
         </button>
         <button type="button" className="icon-btn" onClick={close} aria-label={t("chat.close")} title={t("chat.close")}>
           <X className="size-4" />
