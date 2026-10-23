@@ -22,15 +22,23 @@ npm run build
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build in that order.
 
-On a fresh database the server prints a one-time setup code to the logs; `/register` needs it to create the only (admin) account. `SETUP_TOKEN` pins it.
+On a fresh database the server prints a one-time setup code to the logs; `/register` needs it to create the only (admin) account. `SETUP_TOKEN` pins it. `.env.example` lists every env var.
+
+`README.md` and `README.tr.md` are translations of each other; change both together.
 
 ## Architecture
 
-**Routing and i18n.** Every page lives under `src/app/[lang]/` (`en`, `tr`). `src/proxy.ts` (Next 16's replacement for middleware) adds the locale prefix to bare paths and does an optimistic cookie-only auth redirect; the real session check happens against the DB in every data read and Server Action via `requireSession()` (`src/lib/session.ts`). Server Components get strings from `getI18n()` (`src/i18n/server.ts`, uses `next/root-params`, so it fails in Client Components); Client Components use the `I18nProvider` context from `src/i18n/client.tsx`. `dictionaries/tr.ts` defines the `Dictionary` type, so every new key must be added to both `tr.ts` and `en.ts`.
+**Routing and i18n.** Every page lives under `src/app/[lang]/` (`en`, `tr`). `src/proxy.ts` (Next 16's replacement for middleware) adds the locale prefix to bare paths and does an optimistic cookie-only auth redirect; the real session check happens against the DB in every data read and Server Action via `requireSession()` (`src/lib/session.ts`). Server Components get strings from `getI18n()` (`src/i18n/server.ts`, uses `next/root-params`, so it fails in Client Components); Client Components use the `I18nProvider` context from `src/i18n/client.tsx`. `dictionaries/tr.ts` defines the `Dictionary` type, so every new key must be added to both `tr.ts` and `en.ts`. Imports use the `@/` alias for `src/` (tsconfig and vitest).
 
-**Data layer.** `getDb()` (`src/lib/db/index.ts`) is a global, lazily created connection that applies migrations on first use: `postgres` when `DATABASE_URL` is set, PGlite otherwise (dev only; production refuses to start without `DATABASE_URL`). Migrations are raw SQL in `src/lib/db/migrations.ts`, applied in order under an advisory lock. Never edit a shipped entry; append a new version and keep `schema.ts` in sync by hand (there is no drizzle-kit). Reads are in `src/lib/data.ts`; all mutations are Server Actions in `src/app/actions.ts` (zod-validated, end with `refresh()`). `cacheComponents` is on, so DB reads call `connection()` first and use the DB clock (`sql\`now()\``) instead of `new Date()` where prerendering could happen.
+**Auth.** Login and register actions live in `src/app/[lang]/(auth)/actions.ts`. Attempts are rate limited per IP in the `auth_attempts` table (`rate-limit.ts`, pure rules in `rate-limit-rules.ts`); an attempt is recorded before it is checked, and blocked attempts are refused before any password or code is compared.
+
+**Data layer.** `getDb()` (`src/lib/db/index.ts`) is a global, lazily created connection that applies migrations on first use: `postgres` when `DATABASE_URL` is set, PGlite otherwise (dev only; production refuses to start without `DATABASE_URL`). Migrations are raw SQL in `src/lib/db/migrations.ts`, applied in order under an advisory lock. Never edit a shipped entry; append a new version and keep `schema.ts` in sync by hand (there is no drizzle-kit). Reads are in `src/lib/data.ts`; all panel mutations are Server Actions in `src/app/actions.ts` (zod-validated, end with `refresh()`). Server Actions run one at a time, so anything that polls (e.g. `api/tasks/[id]/activity`, which the task dialog polls while a run is active) is a route handler instead; route handlers check the session with `getCurrentUser()`. `api/health` is the unauthenticated liveness probe and deliberately never touches the DB. `cacheComponents` is on, so DB reads call `connection()` first and use the DB clock (`sql\`now()\``) instead of `new Date()` where prerendering could happen.
 
 **Days and ordering.** A "day" is computed in `APP_TIMEZONE` (`getClock()` in `data.ts`, helpers in `dates.ts`). Done tasks stay on the board until midnight, then appear on `/completed`; open tabs refresh themselves at the rollover (`use-day-rollover.ts`). Card order is a float `position` per column (`task-status.ts`, `ordering.ts`).
+
+**Routines.** Recurring chores in their own `routines` table (title + markdown body), shown as a last, non-draggable column on the board (`src/components/routines.tsx`). They are not tasks: no status, position or tags.
+
+**Rich text.** Task descriptions are TipTap documents (`src/lib/rich-text/`, editor in `src/components/rich-text/`). `document.ts` validates every save on the server against the schema from `extensions.ts`, the palette in `marks.ts` and `isAllowedHref`, so a new extension, mark or color must be added there too or saves will reject it.
 
 **Startup.** `src/instrumentation-node.ts` connects to the DB, prints the setup code, and if the agent is enabled warms the Gateway connection and starts the agent worker.
 
@@ -40,6 +48,8 @@ On a fresh database the server prints a one-time setup code to the logs; `/regis
 - `auto.ts`: adding the agent tag to a task enqueues a run.
 - `continue.ts` / `continuation.ts`: a user comment on an agent task continues the same OpenClaw session unless it has grown too big.
 - `chat.ts` plus `src/app/api/agent/chat/`: the floating chat window, separate from task runs.
+- `settings.ts` / `settings-shape.ts`: agent settings, stored as JSON under one key in `app_settings`; edited on the `/agent` page.
+- `claude-auth.ts` / `claude-status.ts` plus `api/agent/claude`: how OpenClaw reaches Claude (subscription or API key), as shown in the UI; Task Panel never sees the credentials. `api/agent/options` serves what the run panel offers: the Gateway's agents and configured models, plus the defaults.
 
 Files named `*-shape.ts` (and other modules without `import "server-only"`) are pure and safe for Client Components and tests. Tests only import those, plus `docker/openclaw-bootstrap.mjs`.
 
