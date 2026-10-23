@@ -6,6 +6,9 @@
 //   listens on loopback only and never sees DATABASE_URL.
 // - Task Panel runs as `nextjs`; another uid, so the agent's shell can't read its
 //   environment through /proc.
+// - With the agent on, the public port belongs to `control-ui-proxy.mjs`, which
+//   passes requests to Task Panel on loopback and OpenClaw's Control UI to the
+//   Gateway for signed-in users.
 // - A crashed Gateway is restarted with backoff while the app stays up. If the
 //   app exits, the container exits and the restart policy takes over.
 
@@ -13,6 +16,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
+import { CONTROL_UI_BASE_PATH, startControlUiProxy } from "./control-ui-proxy.mjs";
 import {
   GATEWAY_PORT,
   appEnv,
@@ -28,6 +32,9 @@ const SECRETS_DIR = path.join(DATA_DIR, "secrets");
 const OPENCLAW_ROOT = "/app";
 const APP_DIR = "/srv/task-panel";
 const agentEnabled = !/^(0|false|off|no)$/i.test(process.env.TASKPANEL_AGENT ?? "");
+const PUBLIC_PORT = Number(process.env.PORT) || 3000;
+/** Task Panel's own port behind the proxy, loopback only. */
+const APP_PORT = 3001;
 
 function log(message) {
   console.log(`[supervisor] ${message}`);
@@ -84,11 +91,13 @@ let stopping = false;
 let app;
 let gateway;
 let gatewayRestartTimer;
+let proxy;
 
 async function shutdown(code) {
   if (stopping) return;
   stopping = true;
   clearTimeout(gatewayRestartTimer);
+  proxy?.close();
   app?.kill("SIGTERM");
   await waitForExit(app, 10_000);
   gateway?.kill("SIGTERM");
@@ -192,8 +201,19 @@ app = start("app", process.execPath, [path.join(APP_DIR, "server.js")], {
     HOME: APP_DIR,
     // The agent page warns that nothing is persisted.
     ...(ephemeral ? { TASKPANEL_DATA_EPHEMERAL: "1" } : {}),
+    ...(secrets
+      ? { PORT: String(APP_PORT), HOSTNAME: "127.0.0.1", TASKPANEL_CONTROL_UI_PATH: `${CONTROL_UI_BASE_PATH}/` }
+      : {}),
   },
 });
+if (secrets) {
+  proxy = startControlUiProxy({
+    port: PUBLIC_PORT,
+    appPort: APP_PORT,
+    gatewayPort: GATEWAY_PORT,
+    log: (line) => console.log(`[proxy] ${line}`),
+  });
+}
 app.on("exit", (code, signal) => {
   if (stopping) return;
   log(`Task Panel exited (${signal ?? code}); stopping the container.`);

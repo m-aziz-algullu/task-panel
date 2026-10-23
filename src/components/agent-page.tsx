@@ -138,29 +138,35 @@ export function AgentPage({
         <p className="rounded-lg border border-border p-4 text-sm text-muted">{t("agentPage.disabled")}</p>
       ) : (
         <>
-          <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4">
-            <span className="text-sm font-semibold">{t("agentPage.gatewayTitle")}</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                gateway.state === "ready"
-                  ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                  : gateway.state === "error"
-                    ? "bg-red-500/15 text-red-700 dark:text-red-400"
-                    : "bg-surface-2 text-muted"
-              }`}
-            >
-              {t(
-                gateway.state === "ready"
-                  ? "agentPage.gatewayReady"
-                  : gateway.state === "error"
-                    ? "agentPage.gatewayError"
-                    : "agentPage.gatewayConnecting",
+          <section className="flex flex-col gap-3 rounded-lg border border-border p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold">{t("agentPage.gatewayTitle")}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  gateway.state === "ready"
+                    ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                    : gateway.state === "error"
+                      ? "bg-red-500/15 text-red-700 dark:text-red-400"
+                      : "bg-surface-2 text-muted"
+                }`}
+              >
+                {t(
+                  gateway.state === "ready"
+                    ? "agentPage.gatewayReady"
+                    : gateway.state === "error"
+                      ? "agentPage.gatewayError"
+                      : "agentPage.gatewayConnecting",
+                )}
+              </span>
+              {gateway.version && (
+                <span className="text-xs text-muted">{t("agentPage.version", { version: gateway.version })}</span>
               )}
-            </span>
-            {gateway.version && (
-              <span className="text-xs text-muted">{t("agentPage.version", { version: gateway.version })}</span>
-            )}
-            {gateway.error && <span className="text-xs text-red-600 dark:text-red-400">{gateway.error}</span>}
+              {gateway.error && <span className="text-xs text-red-600 dark:text-red-400">{gateway.error}</span>}
+              <a href="/api/agent/control-ui" target="_blank" rel="noopener" className="btn btn-outline ml-auto">
+                <ExternalLink className="size-4" /> {t("agentPage.controlUi")}
+              </a>
+            </div>
+            <p className="text-xs text-muted">{t("agentPage.controlUiHint")}</p>
           </section>
 
           {ephemeral && (

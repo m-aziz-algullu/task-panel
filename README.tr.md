@@ -72,6 +72,7 @@ Production **sadece PostgreSQL** ile çalışır: `DATABASE_URL` yoksa sunucu a�
 
 Varsayılan Docker imajı Task Panel'le aynı container'da gömülü bir [OpenClaw](https://openclaw.ai) Gateway'i de çalıştırır:
 - Gateway sadece container içinden (loopback) erişilir ve token'ını ilk açılışta kendisi üretir. Ona sadece model sağlayıcı anahtarları ve OpenClaw'ın kendi ayarları aktarılır; `DATABASE_URL` ve uygulamanın diğer değişkenleri Task Panel'de kalır.
+- OpenClaw'ın kendi web arayüzü (Control UI: ayarlar, oturumlar, ajanlar, dosyalar) **Ajan** sayfasındaki **OpenClaw arayüzünü aç** butonuyla açılır. Task Panel'in kendi adresinde `/openclaw/` altında, sadece giriş yapmış kullanıcıya sunulur; SSH tüneli ya da ek port gerekmez. Task Panel'in her açılışta yazdığı ayarlar (o sayfada listelenir) orada değiştirilse de kalıcı olmaz.
 - Ajanın hafızası, oturumları, sağlayıcı anahtarları ve skill'leri `/data` altında tutulur. **`/data`'ya bir volume bağla**, yoksa her deploy'da sıfırlanır.
 - Bu imaj için en az 2 GB RAM öner.
 - Ajanın tarayıcısı (Chromium) `browser.noSandbox` ve `--disable-dev-shm-usage` ile çalışır: Chromium'un kendi sandbox'ı Docker'ın vermediği izinler ister, Docker'ın `/dev/shm`'i de sadece 64 MB. Tarayıcıyı container ve root olmayan kullanıcısı yine yalıtır. Chromium'un sandbox'ını korumak istersen container'a `--cap-add=SYS_ADMIN` (ya da buna izin veren bir seccomp profili) ver ve `TASKPANEL_BROWSER_SANDBOX=on` ayarla.
@@ -145,7 +146,7 @@ src/app/[lang]/(panel)/        Pano ve Tamamlananlar sayfaları
 src/app/[lang]/(auth)/         Kurulum (ilk yönetici), giriş, çıkış
 src/app/actions.ts             Task, etiket ve taşıma Server Action'ları
 src/app/api/health/            Sağlık kontrolü
-docker/                        Container supervisor'ı ve gömülü OpenClaw kurulumu
+docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
 src/proxy.ts                   Dil yönlendirmesi ve oturum çerezi kontrolü
 src/i18n/                      Sözlükler (en, tr) ve yardımcılar

@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { CONTROL_UI_BASE_PATH } from "./control-ui-proxy.mjs";
 
 export const GATEWAY_PORT = 18789;
 /** Prefix of the session keys Task Panel gives agent runs (src/lib/types.ts has the same). */
@@ -106,6 +107,8 @@ export function managedConfig({ port = GATEWAY_PORT, container = false, browserS
     },
     ...(container
       ? [
+          // Where control-ui-proxy.mjs serves the Control UI on Task Panel's own port.
+          { path: "gateway.controlUi.basePath", value: CONTROL_UI_BASE_PATH },
           { path: "browser.noSandbox", value: !browserSandbox },
           { path: "browser.extraArgs", value: ["--disable-dev-shm-usage"] },
         ]

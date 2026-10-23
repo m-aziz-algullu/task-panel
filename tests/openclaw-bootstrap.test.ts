@@ -60,6 +60,7 @@ describe("managedConfig", () => {
     expect(config["browser.noSandbox"]).toBe(true);
     expect(config["browser.extraArgs"]).toEqual(["--disable-dev-shm-usage"]);
     expect(config["gateway.bind"]).toBe("loopback");
+    expect(config["gateway.controlUi.basePath"]).toBe("/openclaw");
     const sandboxed = managedConfig({ container: true, browserSandbox: true });
     expect(sandboxed).toContainEqual({ path: "browser.noSandbox", value: false });
   });

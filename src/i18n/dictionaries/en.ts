@@ -153,6 +153,9 @@ const en = {
     gatewayConnecting: "Connecting…",
     gatewayError: "Connection error",
     version: "Version {version}",
+    controlUi: "Open OpenClaw's interface",
+    controlUiHint:
+      "OpenClaw's own Control UI, in a new tab: its settings, sessions, agents and files. Task Panel resets a few keys on every restart, so changes to these won't stick there: gateway.port, gateway.bind, gateway.auth.mode, gateway.controlUi.basePath, tools.allow, skills.allowBundled, the skills it turns off, the context limit of Anthropic models and the browser settings.",
     ephemeral: "/data isn't a mounted volume: the agent's memory, settings and Claude sign-in will be lost on the next deploy.",
     claudeTitle: "Claude sign-in",
     claudeConnected: "Signed in",
