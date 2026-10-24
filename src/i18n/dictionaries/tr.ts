@@ -154,6 +154,9 @@ const tr = {
     gatewayError: "Bağlantı hatası",
     version: "Sürüm {version}",
     controlUi: "OpenClaw arayüzünü aç",
+    controlUiNotReady:
+      "OpenClaw arayüzü henüz hazır değil. Deploy'dan hemen sonra Gateway, başlamadan önce eski container'ın kapanmasını bekler; bu birkaç dakika sürebilir.",
+    retry: "Tekrar dene",
     controlUiHint:
       "OpenClaw'ın kendi Control UI'ı yeni sekmede açılır: ayarları, oturumları, ajanları ve dosyaları. Task Panel birkaç anahtarı her yeniden başlatmada geri yazar, bu yüzden bunlarda yapılan değişiklikler kalıcı olmaz: gateway.port, gateway.bind, gateway.auth.mode, gateway.controlUi.basePath, tools.allow, skills.allowBundled, kapattığı skill'ler, Anthropic modellerinin context limiti ve tarayıcı ayarları.",
     ephemeral: "/data bir volume'a bağlı değil: ajanın hafızası, ayarları ve Claude girişi bir sonraki deploy'da silinecek.",

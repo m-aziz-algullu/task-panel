@@ -35,6 +35,9 @@ const agentEnabled = !/^(0|false|off|no)$/i.test(process.env.TASKPANEL_AGENT ?? 
 const PUBLIC_PORT = Number(process.env.PORT) || 3000;
 /** Task Panel's own port behind the proxy, loopback only. */
 const APP_PORT = 3001;
+/** Retries for writing the Gateway's config while a previous container still owns /data: about 5 minutes. */
+const CONFIG_ATTEMPTS = 30;
+const CONFIG_RETRY_MS = 10_000;
 
 function log(message) {
   console.log(`[supervisor] ${message}`);
@@ -92,6 +95,7 @@ let app;
 let gateway;
 let gatewayRestartTimer;
 let proxy;
+let prepareGateway;
 
 async function shutdown(code) {
   if (stopping) return;
@@ -133,37 +137,7 @@ if (agentEnabled) {
   }
 
   const env = gatewayEnv(process.env, { home: OPENCLAW_HOME, gatewayToken: secrets.gatewayToken });
-  try {
-    applyManagedConfig({
-      command: [process.execPath, path.join(OPENCLAW_ROOT, "openclaw.mjs")],
-      port: GATEWAY_PORT,
-      container: true,
-      // For containers given the privileges Chromium's sandbox needs (SYS_ADMIN or a seccomp profile).
-      browserSandbox: /^(1|true|on|yes)$/i.test(process.env.TASKPANEL_BROWSER_SANDBOX ?? ""),
-      env,
-      uid: node.uid,
-      gid: node.gid,
-      cwd: OPENCLAW_ROOT,
-    });
-  } catch (error) {
-    // Keep going: the Gateway may still start with the config from last time.
-    log(`Could not apply Task Panel's Gateway settings: ${error.message}`);
-  }
-  try {
-    const { version } = JSON.parse(fs.readFileSync(path.join(OPENCLAW_ROOT, "package.json"), "utf8"));
-    const steps = ensureWebSearch({
-      command: [process.execPath, path.join(OPENCLAW_ROOT, "openclaw.mjs")],
-      version,
-      env,
-      uid: node.uid,
-      gid: node.gid,
-      cwd: OPENCLAW_ROOT,
-    });
-    for (const step of steps) log(step);
-  } catch (error) {
-    // The agent still works without it; it just can't search the web.
-    log(`Could not set up web search: ${error.message}`);
-  }
+  const cli = { command: [process.execPath, path.join(OPENCLAW_ROOT, "openclaw.mjs")], env, uid: node.uid, gid: node.gid, cwd: OPENCLAW_ROOT };
 
   let backoffMs = 1_000;
   const startGateway = () => {
@@ -184,7 +158,49 @@ if (agentEnabled) {
       backoffMs = Math.min(backoffMs * 2, 30_000);
     });
   };
-  startGateway();
+
+  // Runs once Task Panel is up. On a start-first redeploy (Dokploy, Docker Swarm)
+  // the previous container's Gateway still owns /data, and OpenClaw refuses to
+  // read or write its config from here until that Gateway has stopped and its
+  // heartbeat has gone stale (up to 90 s). The old container is only stopped once
+  // this one reports healthy, so the wait must not hold up the app; and starting
+  // the Gateway before the config is written would run it without Task Panel's
+  // settings (such as the Control UI's base path) until the next restart.
+  prepareGateway = async () => {
+    for (let attempt = 1; !stopping; attempt++) {
+      try {
+        await applyManagedConfig({
+          ...cli,
+          port: GATEWAY_PORT,
+          container: true,
+          // For containers given the privileges Chromium's sandbox needs (SYS_ADMIN or a seccomp profile).
+          browserSandbox: /^(1|true|on|yes)$/i.test(process.env.TASKPANEL_BROWSER_SANDBOX ?? ""),
+        });
+        if (attempt > 1) log("Gateway settings applied.");
+        break;
+      } catch (error) {
+        if (attempt >= CONFIG_ATTEMPTS) {
+          // Keep going: the Gateway may still start with the config from last time.
+          log(`Could not apply Task Panel's Gateway settings: ${error.message}`);
+          break;
+        }
+        if (attempt === 1) {
+          log("Waiting to apply the Gateway settings; the previous container's Gateway may still own /data.");
+          log(`(${error.message.split("\n")[0]})`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, CONFIG_RETRY_MS));
+      }
+    }
+    if (stopping) return;
+    try {
+      const { version } = JSON.parse(fs.readFileSync(path.join(OPENCLAW_ROOT, "package.json"), "utf8"));
+      for (const step of await ensureWebSearch({ ...cli, version })) log(step);
+    } catch (error) {
+      // The agent still works without it; it just can't search the web.
+      log(`Could not set up web search: ${error.message}`);
+    }
+    if (!stopping) startGateway();
+  };
 } else {
   log("TASKPANEL_AGENT is off: starting Task Panel without OpenClaw.");
 }
@@ -219,3 +235,4 @@ app.on("exit", (code, signal) => {
   log(`Task Panel exited (${signal ?? code}); stopping the container.`);
   shutdown(code || 1);
 });
+void prepareGateway?.();
