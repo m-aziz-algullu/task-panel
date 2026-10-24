@@ -50,9 +50,9 @@ const env = gatewayEnv(process.env, { home, gatewayToken: secrets.gatewayToken }
 const command = [process.execPath, cli];
 
 console.log(`[agent:dev] OpenClaw ${version}, HOME=${path.relative(root, home)}`);
-applyManagedConfig({ command, port, env, cwd: root });
+await applyManagedConfig({ command, port, env, cwd: root });
 try {
-  for (const step of ensureWebSearch({ command, version, env, cwd: root })) console.log(`[agent:dev] ${step}`);
+  for (const step of await ensureWebSearch({ command, version, env, cwd: root })) console.log(`[agent:dev] ${step}`);
 } catch (error) {
   console.log(`[agent:dev] Could not set up web search: ${error.message}`);
 }

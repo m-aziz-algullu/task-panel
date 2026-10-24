@@ -2,7 +2,7 @@
 // to be in place before the bundled OpenClaw Gateway starts. Node built-ins only,
 // since this runs outside the Next.js bundle.
 
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -124,7 +124,7 @@ export const MANAGED_CONFIG_PATHS = managedConfig({ container: true }).map((entr
  * stay OpenClaw's business. `command` is the argv prefix that runs the CLI
  * (node plus openclaw.mjs; no shell involved).
  */
-export function applyManagedConfig({ command, port, container, browserSandbox, env, uid, gid, cwd }) {
+export async function applyManagedConfig({ command, port, container, browserSandbox, env, uid, gid, cwd }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "taskpanel-openclaw-"));
   const batchFile = path.join(dir, "config.batch.json");
   try {
@@ -133,18 +133,36 @@ export function applyManagedConfig({ command, port, container, browserSandbox, e
       fs.chownSync(dir, uid, gid);
       fs.chownSync(batchFile, uid, gid);
     }
-    const result = runCli({ command, env, uid, gid, cwd }, ["config", "set", "--batch-file", batchFile]);
+    const result = await runCli({ command, env, uid, gid, cwd }, ["config", "set", "--batch-file", batchFile]);
     if (result.status !== 0) throw cliError("config set", result);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
+/**
+ * Runs the CLI without blocking the event loop: the supervisor serves the
+ * public port from the same process while it waits on OpenClaw.
+ */
 function runCli({ command, env, uid, gid, cwd }, args, timeout = 60_000) {
   const [program, ...prefix] = command;
-  const result = spawnSync(program, [...prefix, ...args], { env, uid, gid, cwd, encoding: "utf8", timeout });
-  if (result.error) throw result.error;
-  return result;
+  return new Promise((resolve, reject) => {
+    const child = spawn(program, [...prefix, ...args], { env, uid, gid, cwd, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk) => (stdout += chunk));
+    child.stderr.setEncoding("utf8").on("data", (chunk) => (stderr += chunk));
+    const timer = setTimeout(() => child.kill("SIGKILL"), timeout);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (status, signal) => {
+      clearTimeout(timer);
+      if (signal) reject(new Error(`openclaw ${args.slice(0, 2).join(" ")} stopped by ${signal}`));
+      else resolve({ status, stdout, stderr });
+    });
+  });
 }
 
 function cliError(what, result) {
@@ -159,20 +177,20 @@ export const SEARCH_PLUGIN = { id: "parallel", spec: "@openclaw/parallel-plugin"
  * selects its free provider when no search provider is set. A provider the user
  * picked is left alone. Returns what it did, for the log.
  */
-export function ensureWebSearch({ command, version, env, uid, gid, cwd }) {
+export async function ensureWebSearch({ command, version, env, uid, gid, cwd }) {
   const options = { command, env, uid, gid, cwd };
   const done = [];
-  const list = runCli(options, ["plugins", "list", "--json"]);
+  const list = await runCli(options, ["plugins", "list", "--json"]);
   if (list.status !== 0) throw cliError("plugins list", list);
   const { plugins = [] } = JSON.parse(list.stdout.slice(list.stdout.indexOf("{")));
   if (!plugins.some((plugin) => plugin.id === SEARCH_PLUGIN.id)) {
-    const install = runCli(options, ["plugins", "install", `${SEARCH_PLUGIN.spec}@${version}`], 5 * 60_000);
+    const install = await runCli(options, ["plugins", "install", `${SEARCH_PLUGIN.spec}@${version}`], 5 * 60_000);
     if (install.status !== 0) throw cliError("plugins install", install);
     done.push(`installed ${SEARCH_PLUGIN.spec}@${version}`);
   }
-  const current = runCli(options, ["config", "get", "tools.web.search.provider", "--json"]);
+  const current = await runCli(options, ["config", "get", "tools.web.search.provider", "--json"]);
   if (current.status !== 0 && /unset/i.test(current.stdout + current.stderr)) {
-    const set = runCli(options, [
+    const set = await runCli(options, [
       "config",
       "set",
       "tools.web.search.provider",
