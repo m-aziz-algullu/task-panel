@@ -9,9 +9,9 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 
 ![Pano](docs/screenshots/board-light.png)
 
-| Koyu tema | Task detayı | Tamamlananlar (gün gün) |
-| --- | --- | --- |
-| ![Koyu temada pano](docs/screenshots/board-dark.png) | ![Task penceresi](docs/screenshots/task-light.png) | ![Tamamlanan tasklar](docs/screenshots/completed-dark.png) |
+| Koyu tema | Task detayı | Tamamlananlar (gün gün) | Bir rutin |
+| --- | --- | --- | --- |
+| ![Koyu temada pano](docs/screenshots/board-dark.png) | ![Task penceresi](docs/screenshots/task-light.png) | ![Tamamlanan tasklar](docs/screenshots/completed-dark.png) | ![Rutin](docs/screenshots/routine-light.png) |
 
 ## Özellikler
 
@@ -31,6 +31,24 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - Açık ve koyu tema.
 - Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat.
 - **Tek yönetici hesabı, korumalı kurulum** (aşağıda).
+
+## Ajan iş başında
+
+Ajana verilen bir task (burada *Agent* etiketiyle) bir çalıştırma başlatır; ajan raporunu yorum olarak yazar ve taskı ilerletir. Yorumlarda cevap yazarak aynı konuşmaya devam edebilirsin.
+
+![Ajanın bir taska yazdığı rapor](docs/screenshots/agent-run-light.png)
+
+| Ajan sayfası | Sohbet penceresi |
+| --- | --- |
+| ![Ajan sayfası](docs/screenshots/agent-light.png) | ![Ajan sohbet penceresi](docs/screenshots/chat-dark.png) |
+
+**OpenClaw'ın kendi arayüzünde** (Ajan sayfası → *OpenClaw arayüzünü aç*) ajanla doğrudan konuşabilir, yeni ajanlar oluşturabilir, her ajanın tool'larını ve skill'lerini seçebilirsin.
+
+| OpenClaw'da sohbet | Ajanların |
+| --- | --- |
+| ![OpenClaw'da sohbet](docs/screenshots/openclaw-chat.png) | ![OpenClaw'da ajanlar](docs/screenshots/openclaw-agents.png) |
+| **Bir ajanın tool'ları** | **Bir ajanın skill'leri** |
+| ![Ajan tool'ları](docs/screenshots/openclaw-tools.png) | ![Ajan skill'leri](docs/screenshots/openclaw-skills.png) |
 
 ## Kayıt nasıl çalışır
 

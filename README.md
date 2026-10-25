@@ -9,9 +9,9 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 
 ![Board](docs/screenshots/board-light.png)
 
-| Dark mode | Task details | Completed, grouped by day |
-| --- | --- | --- |
-| ![Board in dark mode](docs/screenshots/board-dark.png) | ![Task dialog](docs/screenshots/task-light.png) | ![Completed tasks](docs/screenshots/completed-dark.png) |
+| Dark mode | Task details | Completed, grouped by day | A routine |
+| --- | --- | --- | --- |
+| ![Board in dark mode](docs/screenshots/board-dark.png) | ![Task dialog](docs/screenshots/task-light.png) | ![Completed tasks](docs/screenshots/completed-dark.png) | ![Routine](docs/screenshots/routine-light.png) |
 
 ## Features
 
@@ -31,6 +31,24 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - Light and dark mode.
 - Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close.
 - **Single admin account, protected setup** (see below).
+
+## The agent at work
+
+A task handed to the agent (here through the *Agent* tag) gets a run; the agent posts its report as a comment and moves the task on. You can reply in the comments to continue the same conversation.
+
+![The agent's report on a task](docs/screenshots/agent-run-light.png)
+
+| Agent page | Chat window |
+| --- | --- |
+| ![Agent page](docs/screenshots/agent-light.png) | ![Agent chat window](docs/screenshots/chat-dark.png) |
+
+**OpenClaw's own interface** (Agent page → *Open OpenClaw's interface*) lets you talk to the agent directly, create more agents, and choose each agent's tools and skills.
+
+| Chat in OpenClaw | Your agents |
+| --- | --- |
+| ![Chat in OpenClaw](docs/screenshots/openclaw-chat.png) | ![Agents in OpenClaw](docs/screenshots/openclaw-agents.png) |
+| **An agent's tools** | **An agent's skills** |
+| ![Agent tools](docs/screenshots/openclaw-tools.png) | ![Agent skills](docs/screenshots/openclaw-skills.png) |
 
 ## How sign-up works
 
