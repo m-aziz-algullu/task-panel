@@ -8,6 +8,7 @@
     "dev": "next dev",
     "agent:dev": "node scripts/agent-dev.mjs",
     "agent:cli": "node scripts/agent-cli.mjs",
+    "openclaw:upgrade": "node scripts/openclaw-upgrade.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

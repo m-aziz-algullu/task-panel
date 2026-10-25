@@ -12,6 +12,7 @@ Task Panel is a self-hosted, single-user kanban board (Next.js 16 App Router, Re
 npm run dev            # dev server on :3000; uses embedded PGlite in ./.data/pglite when DATABASE_URL is unset
 npm run agent:dev      # (second terminal, optional) local OpenClaw Gateway on 127.0.0.1:18799, home in ./.data/openclaw
 npm run agent:cli -- … # run the openclaw CLI against that local gateway
+npm run openclaw:upgrade -- <version>  # bump OpenClaw client packages + Dockerfile image together (Dependabot ignores them)
 npm run lint
 npm run typecheck      # next typegen && tsc --noEmit
 npm test               # vitest run (tests/**/*.test.ts)
