@@ -9,7 +9,8 @@
 # Either way DATABASE_URL (PostgreSQL) must be provided at runtime; the server
 # refuses to start without it.
 
-# Keep in sync with @openclaw/gateway-client in package.json (tests check it).
+# Same version as @openclaw/gateway-client in package.json (tests check it);
+# change both with `npm run openclaw:upgrade -- <version>`.
 ARG OPENCLAW_VERSION=2026.10.4
 
 FROM node:24-bookworm-slim AS deps

@@ -14,6 +14,10 @@ updates:
       # https://github.com/typescript-eslint/typescript-eslint/issues/10940
       - dependency-name: typescript
         versions: ["7.0.x"]
+      # The client must match the Gateway in the Docker image (OPENCLAW_VERSION
+      # in the Dockerfile), which Dependabot can't bump with it. Upgrade both
+      # on purpose with `npm run openclaw:upgrade -- <version>`.
+      - dependency-name: "@openclaw/*"
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions

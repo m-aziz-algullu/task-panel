@@ -73,6 +73,8 @@ npm test
 
 **Bundled OpenClaw agent (optional):** run `npm run agent:dev` in a second terminal. It installs the OpenClaw Gateway into `./.data/openclaw-runtime` once and starts it on `127.0.0.1:18799` with `./.data/openclaw` as its home, so your own `~/.openclaw` is never touched. To let it use your Claude subscription, sign in to Claude Code on your computer (`claude auth login`) and run `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default`, then select Sonnet 5.5 with `npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli` and `npm run agent:cli -- models set anthropic/claude-sonnet-5-5`; the **Agent** page shows whether it worked.
 
+To move to another OpenClaw release, run `npm run openclaw:upgrade -- <version>`: it updates the client packages and the Docker image's `OPENCLAW_VERSION` together, once that image is published. Dependabot leaves OpenClaw alone, since the two must match.
+
 ## Self-hosting
 
 Production runs on **PostgreSQL only**: the server refuses to start without `DATABASE_URL`. Tables are created and migrated automatically on startup.

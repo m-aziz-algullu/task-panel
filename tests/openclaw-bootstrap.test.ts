@@ -117,7 +117,8 @@ describe("OpenClaw version", () => {
     const dockerfile = fs.readFileSync(path.join(root, "Dockerfile"), "utf8");
     const imageVersion = dockerfile.match(/^ARG OPENCLAW_VERSION=(\S+)$/m)?.[1];
     expect(imageVersion).toBeDefined();
-    expect(pkg.dependencies["@openclaw/gateway-client"]).toBe(imageVersion);
-    expect(pkg.dependencies["@openclaw/gateway-protocol"]).toBe(imageVersion);
+    const hint = "change both with `npm run openclaw:upgrade -- <version>`";
+    expect(pkg.dependencies["@openclaw/gateway-client"], hint).toBe(imageVersion);
+    expect(pkg.dependencies["@openclaw/gateway-protocol"], hint).toBe(imageVersion);
   });
 });

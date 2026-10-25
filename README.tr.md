@@ -73,6 +73,8 @@ npm test
 
 **Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18799` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz. Claude aboneliğini kullanması için bilgisayarında Claude Code'a giriş yap (`claude auth login`) ve `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default` çalıştır, ardından `npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli` ve `npm run agent:cli -- models set anthropic/claude-sonnet-5-5` ile Sonnet 5.5'i seç; işe yarayıp yaramadığını **Ajan** sayfası gösterir.
 
+OpenClaw'ın başka bir sürümüne geçmek için `npm run openclaw:upgrade -- <sürüm>` çalıştır: imaj yayınlandıysa istemci paketlerini ve Docker imajının `OPENCLAW_VERSION` değerini birlikte günceller. İkisinin aynı olması gerektiğinden Dependabot OpenClaw'a dokunmaz.
+
 ## Kendi sunucuna kurulum
 
 Production **sadece PostgreSQL** ile çalışır: `DATABASE_URL` yoksa sunucu açılmaz. Tablolar açılışta otomatik oluşturulur ve güncellenir.
