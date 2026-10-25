@@ -8,6 +8,11 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # typescript-eslint (via eslint-config-next) doesn't support TS 7 yet:
+      # https://github.com/typescript-eslint/typescript-eslint/issues/10940
+      - dependency-name: typescript
+        versions: [">=7"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions
