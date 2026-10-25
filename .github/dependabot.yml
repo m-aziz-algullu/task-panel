@@ -8,6 +8,12 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # TS 7.0 ships without a JS API, which typescript-eslint and Next's
+      # type check need. 7.1 is expected to bring one, so only 7.0 is skipped:
+      # https://github.com/typescript-eslint/typescript-eslint/issues/10940
+      - dependency-name: typescript
+        versions: ["7.0.x"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions
