@@ -13,6 +13,10 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 | --- | --- | --- |
 | ![Koyu temada pano](docs/screenshots/board-dark.png) | ![Task penceresi](docs/screenshots/task-light.png) | ![Tamamlanan tasklar](docs/screenshots/completed-dark.png) |
 
+| Ajan sayfası | Ajanla sohbet | Bir rutin |
+| --- | --- | --- |
+| ![Ajan sayfası](docs/screenshots/agent-light.png) | ![Ajan sohbet penceresi](docs/screenshots/chat-dark.png) | ![Rutin](docs/screenshots/routine-light.png) |
+
 ## Özellikler
 
 - **Pano:** dört sabit kolon (Backlog, In Progress, Pending, Done). Kolonlar arasında ve kolon içinde sürükle-bırak; fare, dokunmatik ve klavyeyle çalışır.

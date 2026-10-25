@@ -13,6 +13,10 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 | --- | --- | --- |
 | ![Board in dark mode](docs/screenshots/board-dark.png) | ![Task dialog](docs/screenshots/task-light.png) | ![Completed tasks](docs/screenshots/completed-dark.png) |
 
+| Agent page | Chat with the agent | A routine |
+| --- | --- | --- |
+| ![Agent page](docs/screenshots/agent-light.png) | ![Agent chat window](docs/screenshots/chat-dark.png) | ![Routine](docs/screenshots/routine-light.png) |
+
 ## Features
 
 - **Board** with four fixed columns: Backlog, In Progress, Pending, Done. Drag and drop between and within columns (mouse, touch and keyboard).
