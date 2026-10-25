@@ -5,7 +5,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A self-hosted, single-user kanban board for your own tasks. Tags with your own colors, story points, a day on every task, and finished tasks that leave the board at midnight and land in a day-by-day archive.
+A self-hosted, single-user kanban board for your own tasks. Tags with your own colors, story points, a day on every task, and finished tasks that leave the board at midnight and land in a day-by-day archive. Optionally, a bundled AI agent works on the tasks you hand it.
 
 ![Board](docs/screenshots/board-light.png)
 
@@ -18,8 +18,15 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - **Board** with four fixed columns: Backlog, In Progress, Pending, Done. Drag and drop between and within columns (mouse, touch and keyboard).
 - **Tasks** have a title, description, day, story points (1, 2, 3, 5, 8, 13, 21) and tags. Cards show tags, the day, `#id` and points; open tasks past their day are highlighted.
 - **Rich text descriptions** (Jira-style): headings, bold/italic/underline/strike, text colors and highlights, bullet/numbered lists, checklists, quotes, code, links, tables and dividers. Markdown shortcuts (`# `, `- `, `[ ] `, `**bold**`…), a `/` quick-insert menu, `Ctrl+K` for links and `Ctrl`+click to open them.
+- **Comments** on every task, from you, the agent and the system (e.g. why an agent run stopped).
 - **Tags** with a name and any color; filter the board by tag or search text.
-- **End of day:** tasks moved to Done stay on the board until midnight (in `APP_TIMEZONE`), then move to the **Completed** page, which lists them by day at full card size. An open tab refreshes itself at midnight.
+- **End of day:** tasks moved to Done stay on the board until midnight (in `APP_TIMEZONE`), then move to the **Completed** page, which lists them by day at full card size, for the last 7 or 30 days or a whole month. An open tab refreshes itself at midnight. Moving a task planned for another day to Done asks whether to record it on that day or move it to today.
+- **Routines:** a last column on the board for recurring chores, each a title and Markdown notes you open when it's due. They aren't tasks, so they have no status, day or points.
+- **AI agent (optional):** the default Docker image bundles an [OpenClaw](https://openclaw.ai) agent that works on your tasks, running on your Claude subscription or a model provider's API key (see [Self-hosting](#self-hosting)).
+  - **Hand to agent** in a task queues a run: the task moves to In Progress, the agent posts its report as a comment and moves the task on (to Pending by default). Each run has its own model, thinking level, time limit and token budget (Simple, Medium or Hard; a soft budget the agent keeps to, or a hard one Task Panel enforces).
+  - Adding a tag you choose hands a task to the agent automatically. A comment on a task the agent has worked on continues the same conversation.
+  - **Talk to the agent** opens a chat window: tell it about yourself and your preferences or send files (up to 5, 10 MB each); it keeps what lasts in its memory.
+  - The **Agent** page shows the connection and Claude sign-in, holds the defaults (model, budgets, how many runs at once, where finished or stuck tasks go, standing instructions) and opens OpenClaw's own interface.
 - **English and Turkish** UI, picked from the browser language and switchable in the header.
 - Light and dark mode.
 - Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close.
@@ -137,15 +144,16 @@ Health check: `GET /api/health`.
 
 ## Tech stack
 
-Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit. Passwords are hashed with scrypt; sessions are random tokens stored as SHA-256 hashes.
+Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit, TipTap, and [OpenClaw](https://openclaw.ai) for the agent. Passwords are hashed with scrypt; sessions are random tokens stored as SHA-256 hashes.
 
 ## Project structure
 
 ```
-src/app/[lang]/(panel)/        Board and Completed pages
+src/app/[lang]/(panel)/        Board, Completed and Agent pages
 src/app/[lang]/(auth)/         Setup (first admin), sign-in, sign-out
-src/app/actions.ts             Server Actions for tasks, tags and moves
+src/app/actions.ts             Server Actions for tasks, comments, tags, routines and agent runs
 src/app/api/health/            Health check
+src/app/api/agent/             Agent chat, Claude sign-in status, run options, Control UI session
 docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
 src/proxy.ts                   Locale redirects and session-cookie gate
@@ -156,6 +164,9 @@ src/lib/auth.ts                Password hashing, session tokens
 src/lib/setup*.ts              One-time setup code
 src/lib/rate-limit*.ts         Sign-in attempt limits
 src/lib/dates.ts               Time-zone-aware day math
+src/lib/rich-text/             Description schema, checked on every save
+src/lib/agent/                 Agent run queue and worker, prompts, chat, settings
+src/lib/openclaw/              Connection to the OpenClaw Gateway
 src/components/                UI
 ```
 

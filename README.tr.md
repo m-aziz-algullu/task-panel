@@ -5,7 +5,7 @@
 
 [English](README.md) · **Türkçe**
 
-Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinle etiketler, story point'ler, her taskın bir günü var. Biten tasklar gece yarısı panodan kalkıp gün gün listelenen bir arşive geçer.
+Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinle etiketler, story point'ler, her taskın bir günü var. Biten tasklar gece yarısı panodan kalkıp gün gün listelenen bir arşive geçer. İstersen gömülü bir yapay zekâ ajanı ona verdiğin tasklar üzerinde çalışır.
 
 ![Pano](docs/screenshots/board-light.png)
 
@@ -18,8 +18,15 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - **Pano:** dört sabit kolon (Backlog, In Progress, Pending, Done). Kolonlar arasında ve kolon içinde sürükle-bırak; fare, dokunmatik ve klavyeyle çalışır.
 - **Task:** başlık, açıklama, gün, story point (1, 2, 3, 5, 8, 13, 21) ve etiketler. Kartta etiketler, gün, `#id` ve puan görünür. Günü geçmiş açık taskların günü kırmızı yazılır.
 - **Zengin metin açıklama** (Jira gibi): başlıklar, kalın/italik/altı çizili/üstü çizili, yazı rengi ve vurgu, madde ve numaralı listeler, yapılacaklar listesi, alıntı, kod, link, tablo ve ayırıcı. Markdown kısayolları (`# `, `- `, `[ ] `, `**kalın**`…), `/` ile hızlı ekleme menüsü, link için `Ctrl+K`, açmak için `Ctrl`+tık.
+- **Yorumlar:** her taskta senin, ajanın ve sistemin yorumları (örneğin bir ajan çalışmasının neden durduğu).
 - **Etiketler:** isim ve istediğin renk. Panoyu etikete göre filtreleyebilir ya da metinle arayabilirsin.
-- **Gün sonu:** Done'a taşınan tasklar gece yarısına kadar (`APP_TIMEZONE`'a göre) panoda kalır, sonra **Tamamlananlar** sayfasına geçer. Orada gün gün ve panodakiyle aynı kart boyutunda listelenir. Açık sekme gece yarısı kendini yeniler.
+- **Gün sonu:** Done'a taşınan tasklar gece yarısına kadar (`APP_TIMEZONE`'a göre) panoda kalır, sonra **Tamamlananlar** sayfasına geçer. Orada gün gün ve panodakiyle aynı kart boyutunda listelenir; son 7 ya da 30 güne veya bir aya bakabilirsin. Açık sekme gece yarısı kendini yeniler. Başka bir güne planlanmış bir taskı Done'a taşıyınca, o günde mi tamamlandı sayılacağı yoksa bugüne mi taşınacağı sorulur.
+- **Rutinler:** panonun sonunda, tekrarlayan işler için bir kolon. Her rutin bir başlık ve Markdown notlardan oluşur; zamanı gelince açıp bakarsın. Task değildirler, yani durumları, günleri ya da puanları yoktur.
+- **Yapay zekâ ajanı (isteğe bağlı):** varsayılan Docker imajında tasklarının üzerinde çalışan bir [OpenClaw](https://openclaw.ai) ajanı gelir. Claude aboneliğinle ya da bir model sağlayıcısının API anahtarıyla çalışır ([Kendi sunucuna kurulum](#kendi-sunucuna-kurulum) bölümüne bak).
+  - Taskta **Ajana ver** bir çalışmayı kuyruğa ekler: task In Progress'e geçer, ajan raporunu yorum olarak yazar ve taskı ilerletir (varsayılan olarak Pending'e). Her çalışmanın kendi modeli, düşünme seviyesi, süre sınırı ve token bütçesi vardır (Basit, Orta ya da Zor; ajanın uyduğu yumuşak bir bütçe ya da Task Panel'in uyguladığı sert bir bütçe).
+  - Seçtiğin bir etiketi eklemek taskı ajana otomatik verir. Ajanın üzerinde çalıştığı bir taska yazdığın yorum aynı konuşmayı sürdürür.
+  - **Ajanla konuş** bir sohbet penceresi açar: ona kendinden ve tercihlerinden bahsedebilir ya da dosya gönderebilirsin (en fazla 5 dosya, her biri 10 MB); kalıcı olanları hafızasına kaydeder.
+  - **Ajan** sayfası bağlantıyı ve Claude girişini gösterir, varsayılanları tutar (model, bütçeler, aynı anda kaç çalışma olacağı, biten ya da takılan taskların nereye gideceği, kalıcı talimatlar) ve OpenClaw'ın kendi arayüzünü açar.
 - **Türkçe ve İngilizce** arayüz. Tarayıcı diline göre seçilir, header'dan değiştirilebilir.
 - Açık ve koyu tema.
 - Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat.
@@ -137,15 +144,16 @@ Sağlık kontrolü: `GET /api/health`.
 
 ## Teknolojiler
 
-Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit. Şifreler scrypt ile hash'lenir; oturumlar rastgele token'lardır ve veritabanında SHA-256 hash'i olarak tutulur.
+Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit, TipTap ve ajan için [OpenClaw](https://openclaw.ai). Şifreler scrypt ile hash'lenir; oturumlar rastgele token'lardır ve veritabanında SHA-256 hash'i olarak tutulur.
 
 ## Proje yapısı
 
 ```
-src/app/[lang]/(panel)/        Pano ve Tamamlananlar sayfaları
+src/app/[lang]/(panel)/        Pano, Tamamlananlar ve Ajan sayfaları
 src/app/[lang]/(auth)/         Kurulum (ilk yönetici), giriş, çıkış
-src/app/actions.ts             Task, etiket ve taşıma Server Action'ları
+src/app/actions.ts             Task, yorum, etiket, rutin ve ajan çalışması Server Action'ları
 src/app/api/health/            Sağlık kontrolü
+src/app/api/agent/             Ajan sohbeti, Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
 docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
 src/proxy.ts                   Dil yönlendirmesi ve oturum çerezi kontrolü
@@ -156,6 +164,9 @@ src/lib/auth.ts                Şifre hash'leme, oturum token'ları
 src/lib/setup*.ts              Tek seferlik kurulum kodu
 src/lib/rate-limit*.ts         Giriş denemesi sınırları
 src/lib/dates.ts               Saat dilimine göre gün hesapları
+src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
+src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, sohbet, ayarlar
+src/lib/openclaw/              OpenClaw Gateway bağlantısı
 src/components/                Arayüz
 ```
 
