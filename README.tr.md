@@ -21,7 +21,7 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - **Yorumlar:** her taskta senin, ajanın ve sistemin yorumları (örneğin bir ajan çalışmasının neden durduğu).
 - **Etiketler:** isim ve istediğin renk. Panoyu etikete göre filtreleyebilir ya da metinle arayabilirsin.
 - **Gün sonu:** Done'a taşınan tasklar gece yarısına kadar (`APP_TIMEZONE`'a göre) panoda kalır, sonra **Tamamlananlar** sayfasına geçer. Orada gün gün ve panodakiyle aynı kart boyutunda listelenir; son 7 ya da 30 güne veya bir aya bakabilirsin. Açık sekme gece yarısı kendini yeniler. Başka bir güne planlanmış bir taskı Done'a taşıyınca, o günde mi tamamlandı sayılacağı yoksa bugüne mi taşınacağı sorulur.
-- **Rutinler:** panonun sonunda, tekrarlayan işler için bir kolon. Her rutin bir başlık ve Markdown notlardan oluşur; zamanı gelince açıp bakarsın. Task değildirler, yani durumları, günleri ya da puanları yoktur.
+- **Rutinler:** panonun sonunda, tekrarlayan işler için bir kolon. Her rutin bir başlık ve Markdown notlardan oluşur. Task değildirler, yani durumları, günleri ya da puanları yoktur. Bir rutine zamanlama verirsen (her gün, seçtiğin günler ya da bir cron ifadesi, `APP_TIMEZONE` saatiyle) zamanı her geldiğinde Task Panel ondan bir task oluşturur, notları da açıklaması olur; *Task'ı ajana ver* seçiliyse o task varsayılan ayarlarla ajana da gider (ör. her sabah haber özeti). Sunucu kapalıyken kaçan zamanlar telafi edilmez: tek bir task oluşur, zamanlama kaldığı yerden devam eder. *Şimdi task oluştur* rutini zamanlamasına dokunmadan bir kez çalıştırır.
 - **Yapay zekâ ajanı (isteğe bağlı):** varsayılan Docker imajında tasklarının üzerinde çalışan bir [OpenClaw](https://openclaw.ai) ajanı gelir. Claude aboneliğinle ya da bir model sağlayıcısının API anahtarıyla çalışır ([Kendi sunucuna kurulum](#kendi-sunucuna-kurulum) bölümüne bak).
   - Taskta **Ajana ver** bir çalışmayı kuyruğa ekler: task In Progress'e geçer, ajan raporunu yorum olarak yazar ve taskı ilerletir (varsayılan olarak Pending'e). Her çalışmanın kendi modeli, düşünme seviyesi, süre sınırı ve token bütçesi vardır (Basit, Orta ya da Zor; ajanın uyduğu yumuşak bir bütçe ya da Task Panel'in uyguladığı sert bir bütçe).
   - Seçtiğin bir etiketi eklemek taskı ajana otomatik verir. Ajanın üzerinde çalıştığı bir taska yazdığın yorum aynı konuşmayı sürdürür.
@@ -181,6 +181,7 @@ src/lib/auth.ts                Şifre hash'leme, oturum token'ları
 src/lib/setup*.ts              Tek seferlik kurulum kodu
 src/lib/rate-limit*.ts         Giriş denemesi sınırları
 src/lib/dates.ts               Saat dilimine göre gün hesapları
+src/lib/routine-schedule*.ts   Rutin zamanlamaları (cron) ve task'larını oluşturan döngü
 src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
 src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, ayarlar
 src/lib/openclaw/              OpenClaw Gateway bağlantısı

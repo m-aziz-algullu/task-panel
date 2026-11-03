@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { and, asc, desc, eq, gte, inArray, isNotNull, ne, or, type SQL } from "drizzle-orm";
 import { getDb, schema, type Db } from "./db";
 import { DEFAULT_TIME_ZONE, addDays, dayKey, isDayKey, startOfDay } from "./dates";
+import { parseSchedule } from "./routine-schedule";
 import { requireSession } from "./session";
 import { agentEnabled } from "./openclaw/connection";
 import {
@@ -123,11 +124,21 @@ export async function listTags(db: Db): Promise<Tag[]> {
     .orderBy(asc(tags.name));
 }
 
+export function toRoutine(row: typeof routines.$inferSelect): Routine {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    schedule: parseSchedule(row.schedule),
+    handToAgent: row.handToAgent,
+    nextRunAt: row.nextRunAt ? new Date(row.nextRunAt).toISOString() : null,
+    lastRunAt: row.lastRunAt ? new Date(row.lastRunAt).toISOString() : null,
+  };
+}
+
 export async function listRoutines(db: Db): Promise<Routine[]> {
-  return db
-    .select({ id: routines.id, title: routines.title, body: routines.body })
-    .from(routines)
-    .orderBy(asc(routines.title), asc(routines.id));
+  const rows = await db.select().from(routines).orderBy(asc(routines.title), asc(routines.id));
+  return rows.map(toRoutine);
 }
 
 /** Session check plus a request-time anchor, since "today" depends on the clock. */

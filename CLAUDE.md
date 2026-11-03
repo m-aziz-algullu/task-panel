@@ -37,11 +37,11 @@ On a fresh database the server prints a one-time setup code to the logs; `/regis
 
 **Days and ordering.** A "day" is computed in `APP_TIMEZONE` (`getClock()` in `data.ts`, helpers in `dates.ts`). Done tasks stay on the board until midnight, then appear on `/completed`; open tabs refresh themselves at the rollover (`use-day-rollover.ts`). Card order is a float `position` per column (`task-status.ts`, `ordering.ts`).
 
-**Routines.** Recurring chores in their own `routines` table (title + markdown body), shown as a last, non-draggable column on the board (`src/components/routines.tsx`). They are not tasks: no status, position or tags.
+**Routines.** Recurring chores in their own `routines` table (title + markdown body), shown as a last, non-draggable column on the board (`src/components/routines.tsx`). They are not tasks: no status, position or tags. A routine may have a schedule (daily / weekly / cron, `routine-schedule.ts`, pure; evaluated on the wall clock of `APP_TIMEZONE`) stored with a precomputed `next_run_at`. `routine-scheduler.ts` is an in-process loop, started at boot whether or not the agent is on, that locks due rows (`FOR UPDATE SKIP LOCKED`), creates the task (and, with `hand_to_agent`, queues a `routine` run) and advances `next_run_at` in one transaction; missed occurrences are not made up. Saving a routine only recomputes `next_run_at` when the schedule changed.
 
 **Rich text.** Task descriptions are TipTap documents (`src/lib/rich-text/`, editor in `src/components/rich-text/`). `document.ts` validates every save on the server against the schema from `extensions.ts`, the palette in `marks.ts` and `isAllowedHref`, so a new extension, mark or color must be added there too or saves will reject it.
 
-**Startup.** `src/instrumentation-node.ts` connects to the DB, prints the setup code, and if the agent is enabled warms the Gateway connection and starts the agent worker.
+**Startup.** `src/instrumentation-node.ts` connects to the DB, prints the setup code, starts the routine scheduler, and if the agent is enabled warms the Gateway connection and starts the agent worker.
 
 **Agent (OpenClaw).** `src/lib/openclaw/` connects to the Gateway (token from env or `.data/secrets` in dev). `src/lib/agent/`:
 - `runs.ts`: `agent_runs` rows act as a DB-backed queue (enqueue / claim / finalize).

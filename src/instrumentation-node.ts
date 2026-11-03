@@ -15,6 +15,11 @@ if (process.env.NEXT_PHASE !== "phase-production-build") {
     .then(() => console.log("[db] Connected, migrations up to date."))
     .then(logSetupCode)
     .then(async () => {
+      // Scheduled routines create their tasks with or without the agent.
+      const { startRoutineScheduler } = await import("@/lib/routine-scheduler");
+      startRoutineScheduler();
+    })
+    .then(async () => {
       // The bundled OpenClaw agent: connect to the Gateway and start running queued tasks.
       const { agentEnabled } = await import("@/lib/openclaw/connection");
       if (!agentEnabled()) return;
