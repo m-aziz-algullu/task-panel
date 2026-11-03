@@ -9,9 +9,9 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 
 ![Pano](docs/screenshots/board-light.png)
 
-| Koyu tema | Task detayı | Tamamlananlar (gün gün) | Bir rutin |
+| Koyu tema | Task detayı | Tamamlananlar (gün gün) | Zamanlanmış bir rutin |
 | --- | --- | --- | --- |
-| ![Koyu temada pano](docs/screenshots/board-dark.png) | ![Task penceresi](docs/screenshots/task-light.png) | ![Tamamlanan tasklar](docs/screenshots/completed-dark.png) | ![Rutin](docs/screenshots/routine-light.png) |
+| ![Koyu temada pano](docs/screenshots/board-dark.png) | ![Task penceresi](docs/screenshots/task-light.png) | ![Tamamlanan tasklar](docs/screenshots/completed-dark.png) | ![Zamanlanmış rutin](docs/screenshots/routine-light.png) |
 
 ## Özellikler
 
@@ -30,6 +30,12 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - Açık ve koyu tema.
 - Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat.
 - **Tek yönetici hesabı, korumalı kurulum** (aşağıda).
+
+## Zamanlanmış rutinler
+
+Bir rutine zamanlama verirsen zamanı gelince task'ını kendisi oluşturur. Burada her sabah 07:30'da bir haber özeti, doğrudan ajana veriliyor; rutin kartı zamanlamayı, rutinin kendisi de sonraki ve son çalışmayı gösterir.
+
+![Rutin zamanlamasını düzenleme](docs/screenshots/routine-schedule-light.png)
 
 ## Ajan iş başında
 
