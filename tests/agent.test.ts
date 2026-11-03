@@ -17,7 +17,7 @@ import { AGENT_SESSION_KEY_PREFIX } from "@/lib/types";
 import { translate } from "@/i18n/translate";
 
 const base: PromptInput = {
-  task: { id: 7, title: "Rakip fiyatlarını araştır", description: "İlk üç rakip yeter.", status: "backlog", day: "2026-10-18" },
+  task: { id: 7, title: "Rakip fiyatlarını araştır", description: "İlk üç rakip yeter.", status: "backlog", day: "2026-10-18", dueDate: "2026-10-20" },
   tagNames: ["Araştırma"],
   comments: [{ author: "user", body: "Kaynak linki ekle.", createdAt: "2026-10-18T08:00:00.000Z" }],
   instructions: "Always answer in Turkish.",
@@ -32,6 +32,7 @@ describe("buildRunPrompt", () => {
     expect(prompt).toContain("task #7");
     expect(prompt).toContain("Title: Rakip fiyatlarını araştır");
     expect(prompt).toContain("Tags: Araştırma");
+    expect(prompt).toContain("Due: 2026-10-20");
     expect(prompt).toContain("İlk üç rakip yeter.");
     expect(prompt).toContain("Kaynak linki ekle.");
     expect(prompt).toContain("Always answer in Turkish.");

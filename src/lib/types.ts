@@ -32,6 +32,8 @@ export type Task = {
   storyPoints: number | null;
   /** The day the task belongs to, as YYYY-MM-DD. */
   day: string;
+  /** Deadline, as YYYY-MM-DD. */
+  dueDate: string;
   position: number;
   tagIds: number[];
   createdAt: string;
@@ -49,6 +51,7 @@ export type TaskInput = {
   status: Status;
   storyPoints: number | null;
   day: string;
+  dueDate: string;
   /** Day (YYYY-MM-DD) to record the completion on; only used while the status is done. */
   completedDay?: string;
   tagIds: number[];

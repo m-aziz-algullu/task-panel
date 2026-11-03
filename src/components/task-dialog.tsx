@@ -129,6 +129,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
     status: task?.status ?? defaultStatus,
     storyPoints: task?.storyPoints ?? null,
     day: task?.day ?? clock.today,
+    dueDate: task?.dueDate ?? clock.today,
     completedDay: task?.completedDay ?? clock.today,
     tagIds: task?.tagIds ?? [],
   }));
@@ -254,6 +255,34 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
                     type="button"
                     className={`btn px-2 py-1 text-xs ${form.day === option.value ? "bg-surface-2 text-fg" : "btn-ghost text-muted"}`}
                     onClick={() => set("day", option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field
+              label={`${t("task.dueDate")} · ${formatDay(form.dueDate, clock.today, dayLabels, intlLocale)}`}
+            >
+              <input
+                type="date"
+                className="input"
+                value={form.dueDate}
+                required
+                onChange={(event) => event.target.value && set("dueDate", event.target.value)}
+              />
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { label: t("days.today"), value: clock.today },
+                  { label: t("days.tomorrow"), value: addDays(clock.today, 1) },
+                  { label: t("task.inAWeek"), value: addDays(clock.today, 7) },
+                ].map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    className={`btn px-2 py-1 text-xs ${form.dueDate === option.value ? "bg-surface-2 text-fg" : "btn-ghost text-muted"}`}
+                    onClick={() => set("dueDate", option.value)}
                   >
                     {option.label}
                   </button>
