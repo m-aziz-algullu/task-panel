@@ -20,9 +20,9 @@ const AUTHOR_LABEL = { user: "user", agent: "agent", system: "Task Panel" } as c
 /**
  * Every model call re-reads the whole conversation, so whatever a step pulls in
  * is paid for again on every later step. The agent has no browser (its page
- * snapshots run to tens of thousands of tokens). Shared with the panel chat.
+ * snapshots run to tens of thousands of tokens).
  */
-export const WORK_RULES = [
+const WORK_RULES = [
   "- To look something up, use your web search tool; to read a page, use web fetch. There is no browser here.",
   "- Keep it lean: as few steps and pages as the task needs, and only the parts of a page you need.",
 ];

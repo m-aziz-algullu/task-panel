@@ -48,7 +48,6 @@ On a fresh database the server prints a one-time setup code to the logs; `/regis
 - `worker.ts`: an in-process polling loop that claims queued runs, sends prompts (`prompt.ts`), waits on the Gateway, enforces token and time limits, posts results as task comments, and moves the task's status.
 - `auto.ts`: adding the agent tag to a task enqueues a run.
 - `continue.ts` / `continuation.ts`: a user comment on an agent task continues the same OpenClaw session unless it has grown too big.
-- `chat.ts` plus `src/app/api/agent/chat/`: the floating chat window, separate from task runs.
 - `settings.ts` / `settings-shape.ts`: agent settings, stored as JSON under one key in `app_settings`; edited on the `/agent` page.
 - `claude-auth.ts` / `claude-status.ts` plus `api/agent/claude`: how OpenClaw reaches Claude (subscription or API key), as shown in the UI; Task Panel never sees the credentials. `api/agent/options` serves what the run panel offers: the Gateway's agents and configured models, plus the defaults.
 
