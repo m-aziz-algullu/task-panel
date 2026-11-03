@@ -174,4 +174,11 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `ALTER TABLE agent_runs ADD CONSTRAINT agent_runs_trigger_check CHECK (trigger IN ('manual', 'tag', 'comment', 'routine'))`,
     ],
   },
+  {
+    version: 12,
+    statements: [
+      // Optional deadline, apart from the day the task is planned for.
+      `ALTER TABLE tasks ADD COLUMN due_date date`,
+    ],
+  },
 ];

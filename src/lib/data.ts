@@ -39,6 +39,12 @@ export function getClock(now = new Date()): Clock {
 
 type TaskRow = typeof tasks.$inferSelect;
 
+/** `date` columns come back as YYYY-MM-DD, but some drivers hand over a Date or a timestamp string. */
+function toDayKey(value: string | Date): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return isDayKey(value) ? value : String(value).slice(0, 10);
+}
+
 export function toTask(row: TaskRow, tagIds: number[], timeZone: string, agentRun: RunStatus | null = null): Task {
   return {
     id: row.id,
@@ -47,7 +53,8 @@ export function toTask(row: TaskRow, tagIds: number[], timeZone: string, agentRu
     descriptionDoc: row.descriptionDoc ?? null,
     status: row.status as Status,
     storyPoints: row.storyPoints,
-    day: isDayKey(row.day) ? row.day : String(row.day).slice(0, 10),
+    day: toDayKey(row.day),
+    dueDate: row.dueDate == null ? null : toDayKey(row.dueDate),
     position: row.position,
     tagIds,
     createdAt: new Date(row.createdAt).toISOString(),

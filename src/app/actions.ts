@@ -52,6 +52,7 @@ const taskInput = z.object({
   status: z.enum(STATUSES),
   storyPoints: z.number().int().min(0).max(1000).nullable(),
   day: z.string().refine(isDayKey, msg("errors.dayInvalid")),
+  dueDate: z.string().refine(isDayKey, msg("errors.dueDateInvalid")).nullable(),
   completedDay: z
     .string()
     .refine((value) => isDayKey(value) && value <= getClock().today, msg("errors.dayInvalid"))
@@ -131,6 +132,7 @@ export async function createTask(raw: TaskInput): Promise<ActionResult<Task>> {
           status: input.status,
           storyPoints: input.storyPoints,
           day: input.day,
+          dueDate: input.dueDate,
           position: await topPosition(tx, input.status),
           completedAt: completedAtFor(input.status, null, input.completedDay),
         })
@@ -172,6 +174,7 @@ export async function updateTask(rawId: number, raw: TaskInput): Promise<ActionR
           status: input.status,
           storyPoints: input.storyPoints,
           day: input.day,
+          dueDate: input.dueDate,
           completedAt: completedAtFor(input.status, current, input.completedDay),
           updatedAt: new Date(),
           ...(statusChanged ? { position: await topPosition(tx, input.status) } : {}),

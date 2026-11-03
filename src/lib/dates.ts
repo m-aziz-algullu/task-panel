@@ -32,6 +32,11 @@ export function addDays(key: string, days: number): string {
   return new Date(keyToUtc(key) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
+/** Whole days from day `from` to day `to`; negative when `to` is earlier. */
+export function daysUntil(from: string, to: string): number {
+  return Math.round((keyToUtc(to) - keyToUtc(from)) / 86_400_000);
+}
+
 /** Every day from `to` back to `from`, both included, newest first. Empty if `from` is after `to`. */
 export function daysBetweenDesc(from: string, to: string): string[] {
   const days: string[] = [];

@@ -129,6 +129,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
     status: task?.status ?? defaultStatus,
     storyPoints: task?.storyPoints ?? null,
     day: task?.day ?? clock.today,
+    dueDate: task?.dueDate ?? null,
     completedDay: task?.completedDay ?? clock.today,
     tagIds: task?.tagIds ?? [],
   }));
@@ -259,6 +260,42 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
                   </button>
                 ))}
               </div>
+            </Field>
+
+            <Field
+              label={`${t("task.dueDate")} · ${form.dueDate ? formatDay(form.dueDate, clock.today, dayLabels, intlLocale) : t("task.noDueDate")}`}
+            >
+              <input
+                type="date"
+                className="input"
+                value={form.dueDate ?? ""}
+                onChange={(event) => set("dueDate", event.target.value || null)}
+              />
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { label: t("days.today"), value: clock.today },
+                  { label: t("days.tomorrow"), value: addDays(clock.today, 1) },
+                  { label: t("task.inAWeek"), value: addDays(clock.today, 7) },
+                ].map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    className={`btn px-2 py-1 text-xs ${form.dueDate === option.value ? "bg-surface-2 text-fg" : "btn-ghost text-muted"}`}
+                    onClick={() => set("dueDate", option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              {form.dueDate && (
+                <button
+                  type="button"
+                  className="self-start text-xs text-muted hover:text-fg"
+                  onClick={() => set("dueDate", null)}
+                >
+                  {t("task.removeDueDate")}
+                </button>
+              )}
             </Field>
 
             {form.status === "done" && (

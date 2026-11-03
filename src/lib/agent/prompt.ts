@@ -4,7 +4,7 @@
 import { MAX_COMMENT_LENGTH, type LimitMode, type Task, type TaskComment } from "../types";
 
 export type PromptInput = {
-  task: Pick<Task, "id" | "title" | "description" | "status" | "day">;
+  task: Pick<Task, "id" | "title" | "description" | "status" | "day" | "dueDate">;
   tagNames: string[];
   comments: Pick<TaskComment, "author" | "body" | "createdAt">[];
   instructions: string;
@@ -66,7 +66,7 @@ export function buildRunPrompt(input: PromptInput): string {
     [
       "## Task",
       `Title: ${task.title}`,
-      `Status: ${task.status} · Day: ${task.day}${input.tagNames.length ? ` · Tags: ${input.tagNames.join(", ")}` : ""}`,
+      `Status: ${task.status} · Day: ${task.day}${task.dueDate ? ` · Due: ${task.dueDate}` : ""}${input.tagNames.length ? ` · Tags: ${input.tagNames.join(", ")}` : ""}`,
       "Description:",
       task.description.trim() || "(none)",
     ].join("\n"),
