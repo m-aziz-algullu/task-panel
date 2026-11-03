@@ -25,7 +25,6 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - **Yapay zekâ ajanı (isteğe bağlı):** varsayılan Docker imajında tasklarının üzerinde çalışan bir [OpenClaw](https://openclaw.ai) ajanı gelir. Claude aboneliğinle ya da bir model sağlayıcısının API anahtarıyla çalışır ([Kendi sunucuna kurulum](#kendi-sunucuna-kurulum) bölümüne bak).
   - Taskta **Ajana ver** bir çalışmayı kuyruğa ekler: task In Progress'e geçer, ajan raporunu yorum olarak yazar ve taskı ilerletir (varsayılan olarak Pending'e). Her çalışmanın kendi modeli, düşünme seviyesi, süre sınırı ve token bütçesi vardır (Basit, Orta ya da Zor; ajanın uyduğu yumuşak bir bütçe ya da Task Panel'in uyguladığı sert bir bütçe).
   - Seçtiğin bir etiketi eklemek taskı ajana otomatik verir. Ajanın üzerinde çalıştığı bir taska yazdığın yorum aynı konuşmayı sürdürür.
-  - **Ajanla konuş** bir sohbet penceresi açar: ona kendinden ve tercihlerinden bahsedebilir ya da dosya gönderebilirsin (en fazla 5 dosya, her biri 10 MB); kalıcı olanları hafızasına kaydeder.
   - **Ajan** sayfası bağlantıyı ve Claude girişini gösterir, varsayılanları tutar (model, bütçeler, aynı anda kaç çalışma olacağı, biten ya da takılan taskların nereye gideceği, kalıcı talimatlar) ve OpenClaw'ın kendi arayüzünü açar.
 - **Türkçe ve İngilizce** arayüz. Tarayıcı diline göre seçilir, header'dan değiştirilebilir.
 - Açık ve koyu tema.
@@ -38,9 +37,7 @@ Ajana verilen bir task (burada *Agent* etiketiyle) bir çalıştırma başlatır
 
 ![Ajanın bir taska yazdığı rapor](docs/screenshots/agent-run-light.png)
 
-| Ajan sayfası | Sohbet penceresi |
-| --- | --- |
-| ![Ajan sayfası](docs/screenshots/agent-light.png) | ![Ajan sohbet penceresi](docs/screenshots/chat-dark.png) |
+![Ajan sayfası](docs/screenshots/agent-light.png)
 
 **OpenClaw'ın kendi arayüzünde** (Ajan sayfası → *OpenClaw arayüzünü aç*) ajanla doğrudan konuşabilir, yeni ajanlar oluşturabilir, her ajanın tool'larını ve skill'lerini seçebilirsin.
 
@@ -173,7 +170,7 @@ src/app/[lang]/(panel)/        Pano, Tamamlananlar ve Ajan sayfaları
 src/app/[lang]/(auth)/         Kurulum (ilk yönetici), giriş, çıkış
 src/app/actions.ts             Task, yorum, etiket, rutin ve ajan çalışması Server Action'ları
 src/app/api/health/            Sağlık kontrolü
-src/app/api/agent/             Ajan sohbeti, Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
+src/app/api/agent/             Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
 docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
 src/proxy.ts                   Dil yönlendirmesi ve oturum çerezi kontrolü
@@ -185,7 +182,7 @@ src/lib/setup*.ts              Tek seferlik kurulum kodu
 src/lib/rate-limit*.ts         Giriş denemesi sınırları
 src/lib/dates.ts               Saat dilimine göre gün hesapları
 src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
-src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, sohbet, ayarlar
+src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, ayarlar
 src/lib/openclaw/              OpenClaw Gateway bağlantısı
 src/components/                Arayüz
 ```

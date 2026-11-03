@@ -1,11 +1,9 @@
 import { LogOut } from "lucide-react";
 import { Suspense } from "react";
-import { AgentChat } from "@/components/agent-chat";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { NavLinks } from "@/components/nav-links";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getI18n } from "@/i18n/server";
-import { agentEnabled } from "@/lib/openclaw/connection";
 import { getCurrentUser } from "@/lib/session";
 import { logout } from "../(auth)/actions";
 
@@ -25,12 +23,6 @@ async function UserMenu() {
       </form>
     </>
   );
-}
-
-/** The chat with the agent, when this setup has one. */
-async function ChatLauncher() {
-  if (!(await getCurrentUser()) || !agentEnabled()) return null;
-  return <AgentChat />;
 }
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -56,9 +48,6 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">{children}</main>
-      <Suspense fallback={null}>
-        <ChatLauncher />
-      </Suspense>
     </>
   );
 }

@@ -25,7 +25,6 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - **AI agent (optional):** the default Docker image bundles an [OpenClaw](https://openclaw.ai) agent that works on your tasks, running on your Claude subscription or a model provider's API key (see [Self-hosting](#self-hosting)).
   - **Hand to agent** in a task queues a run: the task moves to In Progress, the agent posts its report as a comment and moves the task on (to Pending by default). Each run has its own model, thinking level, time limit and token budget (Simple, Medium or Hard; a soft budget the agent keeps to, or a hard one Task Panel enforces).
   - Adding a tag you choose hands a task to the agent automatically. A comment on a task the agent has worked on continues the same conversation.
-  - **Talk to the agent** opens a chat window: tell it about yourself and your preferences or send files (up to 5, 10 MB each); it keeps what lasts in its memory.
   - The **Agent** page shows the connection and Claude sign-in, holds the defaults (model, budgets, how many runs at once, where finished or stuck tasks go, standing instructions) and opens OpenClaw's own interface.
 - **English and Turkish** UI, picked from the browser language and switchable in the header.
 - Light and dark mode.
@@ -38,9 +37,7 @@ A task handed to the agent (here through the *Agent* tag) gets a run; the agent 
 
 ![The agent's report on a task](docs/screenshots/agent-run-light.png)
 
-| Agent page | Chat window |
-| --- | --- |
-| ![Agent page](docs/screenshots/agent-light.png) | ![Agent chat window](docs/screenshots/chat-dark.png) |
+![Agent page](docs/screenshots/agent-light.png)
 
 **OpenClaw's own interface** (Agent page → *Open OpenClaw's interface*) lets you talk to the agent directly, create more agents, and choose each agent's tools and skills.
 
@@ -173,7 +170,7 @@ src/app/[lang]/(panel)/        Board, Completed and Agent pages
 src/app/[lang]/(auth)/         Setup (first admin), sign-in, sign-out
 src/app/actions.ts             Server Actions for tasks, comments, tags, routines and agent runs
 src/app/api/health/            Health check
-src/app/api/agent/             Agent chat, Claude sign-in status, run options, Control UI session
+src/app/api/agent/             Claude sign-in status, run options, Control UI session
 docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
 src/proxy.ts                   Locale redirects and session-cookie gate
@@ -185,7 +182,7 @@ src/lib/setup*.ts              One-time setup code
 src/lib/rate-limit*.ts         Sign-in attempt limits
 src/lib/dates.ts               Time-zone-aware day math
 src/lib/rich-text/             Description schema, checked on every save
-src/lib/agent/                 Agent run queue and worker, prompts, chat, settings
+src/lib/agent/                 Agent run queue and worker, prompts, settings
 src/lib/openclaw/              Connection to the OpenClaw Gateway
 src/components/                UI
 ```
