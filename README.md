@@ -9,9 +9,9 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 
 ![Board](docs/screenshots/board-light.png)
 
-| Dark mode | Task details | Completed, grouped by day | A routine |
+| Dark mode | Task details | Completed, grouped by day | A scheduled routine |
 | --- | --- | --- | --- |
-| ![Board in dark mode](docs/screenshots/board-dark.png) | ![Task dialog](docs/screenshots/task-light.png) | ![Completed tasks](docs/screenshots/completed-dark.png) | ![Routine](docs/screenshots/routine-light.png) |
+| ![Board in dark mode](docs/screenshots/board-dark.png) | ![Task dialog](docs/screenshots/task-light.png) | ![Completed tasks](docs/screenshots/completed-dark.png) | ![Scheduled routine](docs/screenshots/routine-light.png) |
 
 ## Features
 
@@ -30,6 +30,12 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - Light and dark mode.
 - Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close.
 - **Single admin account, protected setup** (see below).
+
+## Scheduled routines
+
+Give a routine a schedule and it creates its task when it's due. Here a news summary every morning at 07:30, handed straight to the agent; the routine card shows the schedule, and the routine itself the next and last run.
+
+![Editing a routine's schedule](docs/screenshots/routine-schedule-light.png)
 
 ## The agent at work
 
