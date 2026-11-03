@@ -1,7 +1,7 @@
 {
   "name": "task-panel",
   "version": "0.1.0",
-  "description": "Self-hosted personal kanban board: tags, story points, day-based archive of finished tasks, TR/EN UI.",
+  "description": "Self-hosted single-user kanban board: tags, story points, scheduled routines, a day-by-day archive of finished tasks and an optional bundled AI agent (OpenClaw). TR/EN UI.",
   "license": "MIT",
   "private": true,
   "scripts": {
