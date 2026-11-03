@@ -66,7 +66,7 @@ export function buildRunPrompt(input: PromptInput): string {
     [
       "## Task",
       `Title: ${task.title}`,
-      `Status: ${task.status} · Day: ${task.day}${task.dueDate ? ` · Due: ${task.dueDate}` : ""}${input.tagNames.length ? ` · Tags: ${input.tagNames.join(", ")}` : ""}`,
+      `Status: ${task.status} · Day: ${task.day} · Due: ${task.dueDate}${input.tagNames.length ? ` · Tags: ${input.tagNames.join(", ")}` : ""}`,
       "Description:",
       task.description.trim() || "(none)",
     ].join("\n"),

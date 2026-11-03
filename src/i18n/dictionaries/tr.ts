@@ -104,8 +104,6 @@ const tr = {
     day: "Gün",
     completedDay: "Tamamlanma günü",
     dueDate: "Son tarih",
-    noDueDate: "Son tarih yok",
-    removeDueDate: "Son tarihi kaldır",
     inAWeek: "1 hafta sonra",
     storyPoints: "Story Point",
     removePoints: "Puanı kaldır",

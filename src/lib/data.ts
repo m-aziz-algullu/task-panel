@@ -54,7 +54,7 @@ export function toTask(row: TaskRow, tagIds: number[], timeZone: string, agentRu
     status: row.status as Status,
     storyPoints: row.storyPoints,
     day: toDayKey(row.day),
-    dueDate: row.dueDate == null ? null : toDayKey(row.dueDate),
+    dueDate: toDayKey(row.dueDate),
     position: row.position,
     tagIds,
     createdAt: new Date(row.createdAt).toISOString(),

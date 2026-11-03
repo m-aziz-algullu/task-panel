@@ -17,10 +17,9 @@ describe("daysUntil", () => {
 });
 
 describe("dueAlert", () => {
-  const open = (dueDate: string | null) => ({ status: "in_progress" as const, dueDate });
+  const open = (dueDate: string) => ({ status: "in_progress" as const, dueDate });
 
-  it("stays dark without a due date or while the deadline is far off", () => {
-    expect(dueAlert(open(null), today)).toBeNull();
+  it("stays dark while the deadline is far off", () => {
     expect(dueAlert(open("2026-11-06"), today)).toBeNull();
   });
 

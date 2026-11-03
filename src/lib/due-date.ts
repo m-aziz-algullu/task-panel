@@ -12,9 +12,9 @@ export type DueAlert =
   /** The due date has passed. */
   | { kind: "overdue"; daysLate: number };
 
-/** Null when there's nothing to remind about: no due date, the task is done, or the deadline is still far off. */
-export function dueAlert(task: { status: Status; dueDate: string | null }, today: string): DueAlert | null {
-  if (task.dueDate == null || task.status === "done") return null;
+/** Null when there's nothing to remind about: the task is done or the deadline is still far off. */
+export function dueAlert(task: { status: Status; dueDate: string }, today: string): DueAlert | null {
+  if (task.status === "done") return null;
   const daysLeft = daysUntil(today, task.dueDate);
   if (daysLeft < 0) return { kind: "overdue", daysLate: -daysLeft };
   if (daysLeft <= DUE_SOON_DAYS) return { kind: "soon", daysLeft };

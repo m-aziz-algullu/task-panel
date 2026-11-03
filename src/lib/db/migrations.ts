@@ -177,8 +177,11 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
   {
     version: 12,
     statements: [
-      // Optional deadline, apart from the day the task is planned for.
+      // Every task has a deadline, apart from the day it's planned for. Existing
+      // tasks get their planned day, the closest thing they had to one.
       `ALTER TABLE tasks ADD COLUMN due_date date`,
+      `UPDATE tasks SET due_date = day`,
+      `ALTER TABLE tasks ALTER COLUMN due_date SET NOT NULL`,
     ],
   },
 ];

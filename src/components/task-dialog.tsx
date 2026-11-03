@@ -129,7 +129,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
     status: task?.status ?? defaultStatus,
     storyPoints: task?.storyPoints ?? null,
     day: task?.day ?? clock.today,
-    dueDate: task?.dueDate ?? null,
+    dueDate: task?.dueDate ?? clock.today,
     completedDay: task?.completedDay ?? clock.today,
     tagIds: task?.tagIds ?? [],
   }));
@@ -263,13 +263,14 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
             </Field>
 
             <Field
-              label={`${t("task.dueDate")} · ${form.dueDate ? formatDay(form.dueDate, clock.today, dayLabels, intlLocale) : t("task.noDueDate")}`}
+              label={`${t("task.dueDate")} · ${formatDay(form.dueDate, clock.today, dayLabels, intlLocale)}`}
             >
               <input
                 type="date"
                 className="input"
-                value={form.dueDate ?? ""}
-                onChange={(event) => set("dueDate", event.target.value || null)}
+                value={form.dueDate}
+                required
+                onChange={(event) => event.target.value && set("dueDate", event.target.value)}
               />
               <div className="flex flex-wrap gap-1">
                 {[
@@ -287,15 +288,6 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
                   </button>
                 ))}
               </div>
-              {form.dueDate && (
-                <button
-                  type="button"
-                  className="self-start text-xs text-muted hover:text-fg"
-                  onClick={() => set("dueDate", null)}
-                >
-                  {t("task.removeDueDate")}
-                </button>
-              )}
             </Field>
 
             {form.status === "done" && (

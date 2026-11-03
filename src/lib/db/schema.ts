@@ -20,8 +20,8 @@ export const tasks = pgTable("tasks", {
   status: text("status").notNull(),
   storyPoints: integer("story_points"),
   day: date("day", { mode: "string" }).notNull(),
-  /** Optional deadline; the card lights up as it nears while the task is open. */
-  dueDate: date("due_date", { mode: "string" }),
+  /** Deadline; the card lights up as it nears while the task is open. */
+  dueDate: date("due_date", { mode: "string" }).notNull(),
   position: doublePrecision("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

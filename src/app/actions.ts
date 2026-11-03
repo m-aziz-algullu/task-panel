@@ -52,7 +52,7 @@ const taskInput = z.object({
   status: z.enum(STATUSES),
   storyPoints: z.number().int().min(0).max(1000).nullable(),
   day: z.string().refine(isDayKey, msg("errors.dayInvalid")),
-  dueDate: z.string().refine(isDayKey, msg("errors.dueDateInvalid")).nullable(),
+  dueDate: z.string().refine(isDayKey, msg("errors.dueDateInvalid")),
   completedDay: z
     .string()
     .refine((value) => isDayKey(value) && value <= getClock().today, msg("errors.dayInvalid"))

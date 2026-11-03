@@ -104,8 +104,6 @@ const en = {
     day: "Day",
     completedDay: "Completed on",
     dueDate: "Due date",
-    noDueDate: "No due date",
-    removeDueDate: "Clear due date",
     inAWeek: "In a week",
     storyPoints: "Story Points",
     removePoints: "Clear points",

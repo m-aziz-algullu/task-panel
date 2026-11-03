@@ -69,6 +69,7 @@ async function createRoutineTask(
   now: Date,
 ): Promise<{ taskId: number; queued: boolean }> {
   const description = normalizeDocument(plainTextToDocument(routine.body));
+  const today = getClock(now).today;
   const [task] = await db
     .insert(tasks)
     .values({
@@ -76,7 +77,9 @@ async function createRoutineTask(
       description: description.text,
       descriptionDoc: description.doc,
       status: "backlog",
-      day: getClock(now).today,
+      day: today,
+      // A routine's task is for its own day; nothing gives it a later deadline.
+      dueDate: today,
       position: await topPosition(db, "backlog"),
     })
     .returning({ id: tasks.id });

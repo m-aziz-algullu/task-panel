@@ -104,9 +104,7 @@ export function TaskCard({ task, tagsById, today, lifted }: TaskCardProps) {
           <CalendarDays className="size-3.5" />
           {formatDay(task.day, today, dayLabels, intlLocale)}
         </span>
-        {task.dueDate && (
-          <DueDate dueDate={task.dueDate} alert={alert} label={formatDay(task.dueDate, today, dayLabels, intlLocale)} />
-        )}
+        <DueDate dueDate={task.dueDate} alert={alert} label={formatDay(task.dueDate, today, dayLabels, intlLocale)} />
         <span className="ml-auto font-mono text-[11px]">#{task.id}</span>
         {task.storyPoints != null && (
           <span
