@@ -1,6 +1,7 @@
 // Client-safe types and constants shared by the server and the browser.
 
 import type { JSONContent } from "@tiptap/core";
+import type { RoutineSchedule } from "./routine-schedule";
 
 export const STATUSES = ["backlog", "in_progress", "pending", "done"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -96,8 +97,8 @@ export type AgentRun = {
   id: number;
   taskId: number;
   status: RunStatus;
-  /** Who started it: the run panel, the agent tag, or a comment continuing the conversation. */
-  trigger: "manual" | "tag" | "comment";
+  /** Who started it: the run panel, the agent tag, a comment continuing the conversation, or a scheduled routine. */
+  trigger: "manual" | "tag" | "comment" | "routine";
   agentId: string | null;
   model: string | null;
   thinking: string | null;
@@ -123,17 +124,30 @@ export type AgentRunInput = {
 
 export const MAX_ROUTINE_BODY_LENGTH = 10_000;
 
-/** A recurring chore kept on the board; not a task, so it has no status or day. */
+/**
+ * A recurring chore kept on the board; not a task, so it has no status or day.
+ * With a schedule, each time it comes due a task is created from it.
+ */
 export type Routine = {
   id: number;
   title: string;
-  /** Markdown notes. */
+  /** Markdown notes; they become the created task's description. */
   body: string;
+  /** null: kept as notes only, nothing is created. */
+  schedule: RoutineSchedule | null;
+  /** Queue an agent run with the default settings for every task the schedule creates. */
+  handToAgent: boolean;
+  /** When the schedule next creates a task (ISO). */
+  nextRunAt: string | null;
+  /** When it last did (ISO). */
+  lastRunAt: string | null;
 };
 
 export type RoutineInput = {
   title: string;
   body: string;
+  schedule: RoutineSchedule | null;
+  handToAgent: boolean;
 };
 
 export type TagInput = {

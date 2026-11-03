@@ -418,7 +418,13 @@ export function Board({
       )}
       {dialog?.kind === "tags" && <TagManager tags={tags} onClose={() => setDialog(null)} />}
       {dialog?.kind === "routine" && (dialog.routineId == null || openRoutine) && (
-        <RoutineDialog key={dialog.routineId ?? "new"} routine={openRoutine} onClose={() => setDialog(null)} />
+        <RoutineDialog
+          key={dialog.routineId ?? "new"}
+          routine={openRoutine}
+          clock={clock}
+          agent={agent}
+          onClose={() => setDialog(null)}
+        />
       )}
       {pendingDone && (
         <DoneDayPrompt

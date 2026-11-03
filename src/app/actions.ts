@@ -11,10 +11,12 @@ import { activeRun, enqueueRun, finalizeRun, latestRunRow } from "@/lib/agent/ru
 import { MAX_TIMEOUT_SECONDS, MAX_TOKEN_LIMIT, MIN_TOKEN_LIMIT } from "@/lib/agent/settings-shape";
 import { systemCommentBody } from "@/lib/agent/system-comments";
 import { abortSession, pokeAgentWorker } from "@/lib/agent/worker";
-import { getClock, loadTask, toComment } from "@/lib/data";
+import { appTimeZone, getClock, loadTask, toComment, toRoutine } from "@/lib/data";
 import { isDayKey } from "@/lib/dates";
 import { agentEnabled } from "@/lib/openclaw/connection";
 import { InvalidDocumentError, normalizeDocument } from "@/lib/rich-text/document";
+import { nextRunAt, parseSchedule, routineScheduleSchema, type RoutineSchedule } from "@/lib/routine-schedule";
+import { createTaskFromRoutine, pokeRoutineScheduler } from "@/lib/routine-scheduler";
 import { requireSession } from "@/lib/session";
 import { completedAtFor, topPosition } from "@/lib/task-status";
 import {
@@ -86,6 +88,8 @@ const tagInput = z.object({
 const routineInput = z.object({
   title: z.string().trim().min(1, msg("errors.titleRequired")).max(300, msg("errors.titleTooLong")),
   body: z.string().trim().max(MAX_ROUTINE_BODY_LENGTH, msg("errors.routineTooLong")),
+  schedule: routineScheduleSchema.nullable(),
+  handToAgent: z.boolean(),
 });
 
 function fail(error: unknown): { ok: false; error: MessageKey } {
@@ -382,16 +386,23 @@ export async function deleteTag(rawId: number): Promise<ActionResult> {
   }
 }
 
-const routineColumns = { id: routines.id, title: routines.title, body: routines.body };
+/** When a schedule next comes due, counted from now. */
+function firstRun(schedule: RoutineSchedule | null): Date | null {
+  return schedule ? nextRunAt(schedule, new Date(), appTimeZone()) : null;
+}
 
 export async function createRoutine(raw: RoutineInput): Promise<ActionResult<Routine>> {
   await requireSession();
   try {
     const input = routineInput.parse(raw);
     const db = await getDb();
-    const [routine] = await db.insert(routines).values(input).returning(routineColumns);
+    const [row] = await db
+      .insert(routines)
+      .values({ ...input, nextRunAt: firstRun(input.schedule) })
+      .returning();
+    if (input.schedule) pokeRoutineScheduler();
     refresh();
-    return { ok: true, data: routine };
+    return { ok: true, data: toRoutine(row) };
   } catch (error) {
     return fail(error);
   }
@@ -403,14 +414,41 @@ export async function updateRoutine(rawId: number, raw: RoutineInput): Promise<A
     const routineId = id.parse(rawId);
     const input = routineInput.parse(raw);
     const db = await getDb();
-    const [routine] = await db
-      .update(routines)
-      .set({ ...input, updatedAt: new Date() })
-      .where(eq(routines.id, routineId))
-      .returning(routineColumns);
-    if (!routine) return { ok: false, error: "errors.routineNotFound" };
+    const row = await db.transaction(async (tx) => {
+      const [current] = await tx.select().from(routines).where(eq(routines.id, routineId)).for("update");
+      if (!current) return null;
+      // An unchanged schedule keeps its due time, so editing the notes never skips or repeats a run.
+      const rescheduled = JSON.stringify(parseSchedule(current.schedule)) !== JSON.stringify(input.schedule);
+      const [updated] = await tx
+        .update(routines)
+        .set({
+          ...input,
+          updatedAt: new Date(),
+          ...(rescheduled ? { nextRunAt: firstRun(input.schedule) } : {}),
+        })
+        .where(eq(routines.id, routineId))
+        .returning();
+      return updated;
+    });
+    if (!row) return { ok: false, error: "errors.routineNotFound" };
+    pokeRoutineScheduler();
     refresh();
-    return { ok: true, data: routine };
+    return { ok: true, data: toRoutine(row) };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Creates the routine's task right away, without waiting for (or moving) its schedule. */
+export async function runRoutineNow(rawId: number): Promise<ActionResult<{ taskId: number }>> {
+  await requireSession();
+  try {
+    const db = await getDb();
+    const result = await createTaskFromRoutine(db, id.parse(rawId));
+    if (!result) return { ok: false, error: "errors.routineNotFound" };
+    if (result.queued) pokeAgentWorker();
+    refresh();
+    return { ok: true, data: { taskId: result.taskId } };
   } catch (error) {
     return fail(error);
   }

@@ -161,4 +161,17 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       )`,
     ],
   },
+  {
+    version: 11,
+    statements: [
+      // Scheduled routines: when due, the scheduler creates a task (and maybe an agent run) from them.
+      `ALTER TABLE routines ADD COLUMN schedule jsonb`,
+      `ALTER TABLE routines ADD COLUMN hand_to_agent boolean NOT NULL DEFAULT false`,
+      `ALTER TABLE routines ADD COLUMN next_run_at timestamptz`,
+      `ALTER TABLE routines ADD COLUMN last_run_at timestamptz`,
+      `CREATE INDEX routines_next_run_idx ON routines (next_run_at) WHERE next_run_at IS NOT NULL`,
+      `ALTER TABLE agent_runs DROP CONSTRAINT agent_runs_trigger_check`,
+      `ALTER TABLE agent_runs ADD CONSTRAINT agent_runs_trigger_check CHECK (trigger IN ('manual', 'tag', 'comment', 'routine'))`,
+    ],
+  },
 ];

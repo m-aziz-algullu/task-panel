@@ -21,7 +21,7 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - **Comments** on every task, from you, the agent and the system (e.g. why an agent run stopped).
 - **Tags** with a name and any color; filter the board by tag or search text.
 - **End of day:** tasks moved to Done stay on the board until midnight (in `APP_TIMEZONE`), then move to the **Completed** page, which lists them by day at full card size, for the last 7 or 30 days or a whole month. An open tab refreshes itself at midnight. Moving a task planned for another day to Done asks whether to record it on that day or move it to today.
-- **Routines:** a last column on the board for recurring chores, each a title and Markdown notes you open when it's due. They aren't tasks, so they have no status, day or points.
+- **Routines:** a last column on the board for recurring chores, each a title and Markdown notes. They aren't tasks, so they have no status, day or points. Give one a schedule (every day, chosen weekdays, or a cron expression, in `APP_TIMEZONE`) and Task Panel creates a task from it each time it's due, with the notes as its description; tick *Hand the task to the agent* and that task also goes to the agent with the default settings (e.g. a news summary every morning). Times missed while the server was down are not made up: you get one task, then the schedule carries on. *Create task now* runs a routine once without touching its schedule.
 - **AI agent (optional):** the default Docker image bundles an [OpenClaw](https://openclaw.ai) agent that works on your tasks, running on your Claude subscription or a model provider's API key (see [Self-hosting](#self-hosting)).
   - **Hand to agent** in a task queues a run: the task moves to In Progress, the agent posts its report as a comment and moves the task on (to Pending by default). Each run has its own model, thinking level, time limit and token budget (Simple, Medium or Hard; a soft budget the agent keeps to, or a hard one Task Panel enforces).
   - Adding a tag you choose hands a task to the agent automatically. A comment on a task the agent has worked on continues the same conversation.
@@ -184,6 +184,7 @@ src/lib/auth.ts                Password hashing, session tokens
 src/lib/setup*.ts              One-time setup code
 src/lib/rate-limit*.ts         Sign-in attempt limits
 src/lib/dates.ts               Time-zone-aware day math
+src/lib/routine-schedule*.ts   Routine schedules (cron) and the loop that creates their tasks
 src/lib/rich-text/             Description schema, checked on every save
 src/lib/agent/                 Agent run queue and worker, prompts, chat, settings
 src/lib/openclaw/              Connection to the OpenClaw Gateway

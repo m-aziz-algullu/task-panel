@@ -58,10 +58,32 @@ function offsetMs(date: Date, timeZone: string): number {
 
 /** The instant the day `key` starts in `timeZone`. */
 export function startOfDay(key: string, timeZone: string): Date {
-  const utc = keyToUtc(key);
+  return zonedInstant(key, 0, timeZone);
+}
+
+/**
+ * The instant the wall clock in `timeZone` shows `minutes` past midnight on day
+ * `key`. A time skipped by a DST change maps to the same distance past the change.
+ */
+export function zonedInstant(key: string, minutes: number, timeZone: string): Date {
+  const utc = keyToUtc(key) + minutes * 60_000;
   const guess = utc - offsetMs(new Date(utc), timeZone);
   // Re-check at the guess in case a DST change sits between the two instants.
   return new Date(utc - offsetMs(new Date(guess), timeZone));
+}
+
+/** What the wall clock in `timeZone` shows at `date`: the day and whole minutes past midnight. */
+export function wallClock(date: Date, timeZone: string): { day: string; minutes: number } {
+  const local = new Date(date.getTime() + offsetMs(date, timeZone));
+  return {
+    day: local.toISOString().slice(0, 10),
+    minutes: local.getUTCHours() * 60 + local.getUTCMinutes(),
+  };
+}
+
+/** Day of the week of `key`, 0 (Sunday) to 6. */
+export function weekday(key: string): number {
+  return new Date(keyToUtc(key)).getUTCDay();
 }
 
 const formatters = new Map<string, Intl.DateTimeFormat>();

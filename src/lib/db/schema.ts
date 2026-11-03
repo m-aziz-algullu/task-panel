@@ -1,5 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
-import { date, doublePrecision, integer, jsonb, pgTable, primaryKey, serial, text, timestamp } from "drizzle-orm/pg-core";
+import type { RoutineSchedule } from "../routine-schedule";
+import { boolean, date, doublePrecision, integer, jsonb, pgTable, primaryKey, serial, text, timestamp } from "drizzle-orm/pg-core";
 
 // Mirrors the SQL in ./migrations.ts, which is what actually creates the tables.
 
@@ -80,6 +81,12 @@ export const routines = pgTable("routines", {
   title: text("title").notNull(),
   /** Markdown notes: the steps, links, when it's due. */
   body: text("body").notNull().default(""),
+  /** RoutineSchedule as JSON; null for a routine that's only notes. */
+  schedule: jsonb("schedule").$type<RoutineSchedule>(),
+  handToAgent: boolean("hand_to_agent").notNull().default(false),
+  /** When the scheduler creates the next task; null without a schedule. */
+  nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
