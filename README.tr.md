@@ -26,6 +26,7 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
   - Taskta **Ajana ver** bir çalışmayı kuyruğa ekler: task In Progress'e geçer, ajan raporunu yorum olarak yazar ve taskı ilerletir (varsayılan olarak Pending'e). Her çalışmanın kendi modeli, düşünme seviyesi, süre sınırı ve token bütçesi vardır (Basit, Orta ya da Zor; ajanın uyduğu yumuşak bir bütçe ya da Task Panel'in uyguladığı sert bir bütçe).
   - Seçtiğin bir etiketi eklemek taskı ajana otomatik verir. Ajanın üzerinde çalıştığı bir taska yazdığın yorum aynı konuşmayı sürdürür.
   - **Ajan** sayfası bağlantıyı ve Claude girişini gösterir, varsayılanları tutar (model, bütçeler, aynı anda kaç çalışma olacağı, biten ya da takılan taskların nereye gideceği, kalıcı talimatlar) ve OpenClaw'ın kendi arayüzünü açar.
+- **Yedekleme ve geri yükleme:** *Ayarlar* sayfası oluşturduğun her şeyi (etiketleri ve yorumlarıyla tasklar, etiketler, rutinler ve ajan ayarları) tek bir JSON dosyası olarak indirir, paneli de böyle bir dosyadan tek adımda geri yükler. Geri yükleme panoyu baştan kurar, her `#id` aynı kalır; aktif bir ajan çalışması varken yapılmaz. Hesabın ve ajan çalışma geçmişi dahil değildir.
 - **Türkçe ve İngilizce** arayüz. Tarayıcı diline göre seçilir, header'dan değiştirilebilir.
 - Açık ve koyu tema.
 - Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat.
@@ -172,10 +173,11 @@ Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CS
 ## Proje yapısı
 
 ```
-src/app/[lang]/(panel)/        Pano, Tamamlananlar ve Ajan sayfaları
+src/app/[lang]/(panel)/        Pano, Tamamlananlar, Ajan ve Ayarlar sayfaları
 src/app/[lang]/(auth)/         Kurulum (ilk yönetici), giriş, çıkış
 src/app/actions.ts             Task, yorum, etiket, rutin ve ajan çalışması Server Action'ları
 src/app/api/health/            Sağlık kontrolü
+src/app/api/backup/            Yedek indirme ve geri yükleme
 src/app/api/agent/             Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
 docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
@@ -189,6 +191,7 @@ src/lib/rate-limit*.ts         Giriş denemesi sınırları
 src/lib/dates.ts               Saat dilimine göre gün hesapları
 src/lib/routine-schedule*.ts   Rutin zamanlamaları (cron) ve task'larını oluşturan döngü
 src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
+src/lib/backup*.ts             Yedek dosyasının yapısı ve hep-ya-hiç geri yükleme
 src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, ayarlar
 src/lib/openclaw/              OpenClaw Gateway bağlantısı
 src/components/                Arayüz
