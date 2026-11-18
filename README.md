@@ -26,6 +26,7 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
   - **Hand to agent** in a task queues a run: the task moves to In Progress, the agent posts its report as a comment and moves the task on (to Pending by default). Each run has its own model, thinking level, time limit and token budget (Simple, Medium or Hard; a soft budget the agent keeps to, or a hard one Task Panel enforces).
   - Adding a tag you choose hands a task to the agent automatically. A comment on a task the agent has worked on continues the same conversation.
   - The **Agent** page shows the connection and Claude sign-in, holds the defaults (model, budgets, how many runs at once, where finished or stuck tasks go, standing instructions) and opens OpenClaw's own interface.
+- **Backup and restore:** *Settings* downloads everything you made (tasks with their tags and comments, tags, routines and agent settings) as one JSON file, and restores the panel from such a file in one step. A restore replaces the board, keeps every `#id`, and waits until no agent run is active. Your account and agent run history aren't included.
 - **English and Turkish** UI, picked from the browser language and switchable in the header.
 - Light and dark mode.
 - Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close.
@@ -172,10 +173,11 @@ Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CS
 ## Project structure
 
 ```
-src/app/[lang]/(panel)/        Board, Completed and Agent pages
+src/app/[lang]/(panel)/        Board, Completed, Agent and Settings pages
 src/app/[lang]/(auth)/         Setup (first admin), sign-in, sign-out
 src/app/actions.ts             Server Actions for tasks, comments, tags, routines and agent runs
 src/app/api/health/            Health check
+src/app/api/backup/            Backup download and restore
 src/app/api/agent/             Claude sign-in status, run options, Control UI session
 docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
@@ -189,6 +191,7 @@ src/lib/rate-limit*.ts         Sign-in attempt limits
 src/lib/dates.ts               Time-zone-aware day math
 src/lib/routine-schedule*.ts   Routine schedules (cron) and the loop that creates their tasks
 src/lib/rich-text/             Description schema, checked on every save
+src/lib/backup*.ts             Backup file shape and the all-or-nothing restore
 src/lib/agent/                 Agent run queue and worker, prompts, settings
 src/lib/openclaw/              Connection to the OpenClaw Gateway
 src/components/                UI
