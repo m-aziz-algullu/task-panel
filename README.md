@@ -5,7 +5,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A self-hosted, single-user kanban board for your own tasks. Tags with your own colors, story points, a day on every task, and finished tasks that leave the board at midnight and land in a day-by-day archive. Optionally, a bundled AI agent works on the tasks you hand it.
+A self-hosted, single-user kanban board for your own tasks. Tags with your own colors, story points, a day and a due date on every task, scheduled routines that create tasks for you, and finished tasks that leave the board at midnight and land in a day-by-day archive. Optionally, a bundled AI agent works on the tasks you hand it.
 
 ![Board](docs/screenshots/board-light.png)
 
@@ -16,7 +16,8 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 ## Features
 
 - **Board** with four fixed columns: Backlog, In Progress, Pending, Done. Drag and drop between and within columns (mouse, touch and keyboard).
-- **Tasks** have a title, description, day, story points (1, 2, 3, 5, 8, 13, 21) and tags. Cards show tags, the day, `#id` and points; open tasks past their day are highlighted.
+- **Tasks** have a title, description, day, due date, story points (1, 2, 3, 5, 8, 13, 21) and tags. Cards show tags, the day, the due date, `#id` and points; open tasks past their day are highlighted.
+- **Due dates:** every task has one (today by default; *Today*, *Tomorrow* and *In a week* are one click away). From two days before the deadline an open task's card shows an amber light next to the due date, and a red one once it has passed. Tasks created from routines are due on the day they are created, and the agent sees the due date in its prompt.
 - **Rich text descriptions** (Jira-style): headings, bold/italic/underline/strike, text colors and highlights, bullet/numbered lists, checklists, quotes, code, links, tables and dividers. Markdown shortcuts (`# `, `- `, `[ ] `, `**bold**`…), a `/` quick-insert menu, `Ctrl+K` for links and `Ctrl`+click to open them.
 - **Comments** on every task, from you, the agent and the system (e.g. why an agent run stopped).
 - **Tags** with a name and any color; filter the board by tag or search text.
@@ -31,6 +32,12 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - Light and dark mode.
 - Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close.
 - **Single admin account, protected setup** (see below).
+
+## Backup and restore
+
+*Settings* downloads the whole panel as one JSON file and restores it from such a file.
+
+![Settings page with backup and restore](docs/screenshots/settings-light.png)
 
 ## Scheduled routines
 
@@ -92,6 +99,10 @@ npm run lint
 npm run typecheck
 npm test
 ```
+
+`npm test` also runs the database tests in `tests/db/` (Server Actions, the agent run queue, the routine scheduler); they use an in-memory PGlite, so they need nothing installed either. CI runs lint, typecheck, tests and the build on every pull request.
+
+The screenshots in this README come from `npm run screenshots`: it starts the app on a throwaway database, fills it with demo data and saves them to `docs/screenshots/` (it needs Playwright with Chromium; the agent and OpenClaw screenshots are taken by hand).
 
 **Bundled OpenClaw agent (optional):** run `npm run agent:dev` in a second terminal. It installs the OpenClaw Gateway into `./.data/openclaw-runtime` once and starts it on `127.0.0.1:18799` with `./.data/openclaw` as its home, so your own `~/.openclaw` is never touched. To let it use your Claude subscription, sign in to Claude Code on your computer (`claude auth login`) and run `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default`, then select Sonnet 5.5 with `npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli` and `npm run agent:cli -- models set anthropic/claude-sonnet-5-5`; the **Agent** page shows whether it worked.
 
@@ -181,6 +192,7 @@ src/app/api/backup/            Backup download and restore
 src/app/api/agent/             Claude sign-in status, run options, Control UI session
 docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
+scripts/screenshots.mjs        Re-takes the README screenshots from demo data
 src/proxy.ts                   Locale redirects and session-cookie gate
 src/i18n/                      Dictionaries (en, tr) and helpers
 src/lib/db/                    Connection, schema, migrations
@@ -189,15 +201,21 @@ src/lib/auth.ts                Password hashing, session tokens
 src/lib/setup*.ts              One-time setup code
 src/lib/rate-limit*.ts         Sign-in attempt limits
 src/lib/dates.ts               Time-zone-aware day math
+src/lib/due-date.ts            When a card's due-date light turns on
 src/lib/routine-schedule*.ts   Routine schedules (cron) and the loop that creates their tasks
 src/lib/rich-text/             Description schema, checked on every save
 src/lib/backup*.ts             Backup file shape and the all-or-nothing restore
 src/lib/agent/                 Agent run queue and worker, prompts, settings
 src/lib/openclaw/              Connection to the OpenClaw Gateway
 src/components/                UI
+tests/                         Unit tests; tests/db/ runs against a real (in-memory) database
 ```
 
 Schema changes go in `src/lib/db/migrations.ts` as a new version; shipped versions are never edited.
+
+## Contributing
+
+A change is done when, in the same pull request, its tests are added or updated, both READMEs (English and Turkish) describe it (with fresh screenshots if the UI changed), `CLAUDE.md` follows any new convention, and the GitHub repository's About description and topics still match the app. The full checklist is in [CLAUDE.md](CLAUDE.md#definition-of-done).
 
 ## License
 

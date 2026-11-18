@@ -5,7 +5,7 @@
 
 [English](README.md) · **Türkçe**
 
-Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinle etiketler, story point'ler, her taskın bir günü var. Biten tasklar gece yarısı panodan kalkıp gün gün listelenen bir arşive geçer. İstersen gömülü bir yapay zekâ ajanı ona verdiğin tasklar üzerinde çalışır.
+Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinle etiketler, story point'ler, her taskın bir günü ve son tarihi var; zamanlanmış rutinler senin yerine task oluşturur. Biten tasklar gece yarısı panodan kalkıp gün gün listelenen bir arşive geçer. İstersen gömülü bir yapay zekâ ajanı ona verdiğin tasklar üzerinde çalışır.
 
 ![Pano](docs/screenshots/board-light.png)
 
@@ -16,7 +16,8 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 ## Özellikler
 
 - **Pano:** dört sabit kolon (Backlog, In Progress, Pending, Done). Kolonlar arasında ve kolon içinde sürükle-bırak; fare, dokunmatik ve klavyeyle çalışır.
-- **Task:** başlık, açıklama, gün, story point (1, 2, 3, 5, 8, 13, 21) ve etiketler. Kartta etiketler, gün, `#id` ve puan görünür. Günü geçmiş açık taskların günü kırmızı yazılır.
+- **Task:** başlık, açıklama, gün, son tarih, story point (1, 2, 3, 5, 8, 13, 21) ve etiketler. Kartta etiketler, gün, son tarih, `#id` ve puan görünür. Günü geçmiş açık taskların günü kırmızı yazılır.
+- **Son tarih:** her taskın bir son tarihi vardır (varsayılan bugün; *Bugün*, *Yarın* ve *1 hafta sonra* tek tıkla seçilir). Son tarihten iki gün önce açık bir taskın kartında son tarihin yanında turuncu bir ışık yanar, tarih geçince kırmızıya döner. Rutinlerden oluşan tasklar oluşturuldukları gün bitmelidir; ajan da son tarihi prompt'ta görür.
 - **Zengin metin açıklama** (Jira gibi): başlıklar, kalın/italik/altı çizili/üstü çizili, yazı rengi ve vurgu, madde ve numaralı listeler, yapılacaklar listesi, alıntı, kod, link, tablo ve ayırıcı. Markdown kısayolları (`# `, `- `, `[ ] `, `**kalın**`…), `/` ile hızlı ekleme menüsü, link için `Ctrl+K`, açmak için `Ctrl`+tık.
 - **Yorumlar:** her taskta senin, ajanın ve sistemin yorumları (örneğin bir ajan çalışmasının neden durduğu).
 - **Etiketler:** isim ve istediğin renk. Panoyu etikete göre filtreleyebilir ya da metinle arayabilirsin.
@@ -31,6 +32,12 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - Açık ve koyu tema.
 - Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat.
 - **Tek yönetici hesabı, korumalı kurulum** (aşağıda).
+
+## Yedekleme ve geri yükleme
+
+*Ayarlar* sayfası tüm paneli tek bir JSON dosyası olarak indirir ve böyle bir dosyadan geri yükler.
+
+![Yedekleme ve geri yükleme ile Ayarlar sayfası](docs/screenshots/settings-light.png)
 
 ## Zamanlanmış rutinler
 
@@ -92,6 +99,10 @@ npm run lint
 npm run typecheck
 npm test
 ```
+
+`npm test`, `tests/db/` içindeki veritabanı testlerini de çalıştırır (Server Action'lar, ajan çalışma kuyruğu, rutin zamanlayıcı); bellekte çalışan bir PGlite kullandıkları için onlar da hiçbir kurulum istemez. CI her pull request'te lint, typecheck, testler ve build'i çalıştırır.
+
+Bu README'deki ekran görüntüleri `npm run screenshots` ile alınır: uygulamayı geçici bir veritabanıyla açar, demo veriyle doldurur ve görüntüleri `docs/screenshots/` altına kaydeder (Chromium'lu Playwright gerekir; ajan ve OpenClaw görüntüleri elle alınır).
 
 **Gömülü OpenClaw ajanı (isteğe bağlı):** ikinci bir terminalde `npm run agent:dev` çalıştır. OpenClaw Gateway'i ilk seferde `./.data/openclaw-runtime` altına kurar ve `./.data/openclaw` klasörünü HOME olarak kullanarak `127.0.0.1:18799` üzerinde açar. Kendi `~/.openclaw` klasörüne dokunmaz. Claude aboneliğini kullanması için bilgisayarında Claude Code'a giriş yap (`claude auth login`) ve `npm run agent:cli -- models auth login --provider anthropic --method cli --set-default` çalıştır, ardından `npm run agent:cli -- config set agents.defaults.models.anthropic/claude-sonnet-5-5.agentRuntime.id claude-cli` ve `npm run agent:cli -- models set anthropic/claude-sonnet-5-5` ile Sonnet 5.5'i seç; işe yarayıp yaramadığını **Ajan** sayfası gösterir.
 
@@ -181,6 +192,7 @@ src/app/api/backup/            Yedek indirme ve geri yükleme
 src/app/api/agent/             Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
 docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
+scripts/screenshots.mjs        README ekran görüntülerini demo veriden yeniden alır
 src/proxy.ts                   Dil yönlendirmesi ve oturum çerezi kontrolü
 src/i18n/                      Sözlükler (en, tr) ve yardımcılar
 src/lib/db/                    Bağlantı, şema, migration'lar
@@ -189,15 +201,21 @@ src/lib/auth.ts                Şifre hash'leme, oturum token'ları
 src/lib/setup*.ts              Tek seferlik kurulum kodu
 src/lib/rate-limit*.ts         Giriş denemesi sınırları
 src/lib/dates.ts               Saat dilimine göre gün hesapları
+src/lib/due-date.ts            Karttaki son tarih ışığının ne zaman yanacağı
 src/lib/routine-schedule*.ts   Rutin zamanlamaları (cron) ve task'larını oluşturan döngü
 src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
 src/lib/backup*.ts             Yedek dosyasının yapısı ve hep-ya-hiç geri yükleme
 src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, ayarlar
 src/lib/openclaw/              OpenClaw Gateway bağlantısı
 src/components/                Arayüz
+tests/                         Birim testleri; tests/db/ gerçek (bellekte) bir veritabanında çalışır
 ```
 
 Şema değişiklikleri `src/lib/db/migrations.ts` dosyasına yeni bir sürüm olarak eklenir; yayınlanmış sürümler düzenlenmez.
+
+## Katkı
+
+Bir değişiklik, aynı pull request'te testleri eklenmiş ya da güncellenmiş, iki README de (İngilizce ve Türkçe) onu anlatıyor (arayüz değiştiyse yeni ekran görüntüleriyle), `CLAUDE.md` yeni bir kuralı yansıtıyor ve GitHub reposunun About açıklaması ile konuları uygulamayla hâlâ uyuşuyorsa bitmiş sayılır. Listenin tamamı [CLAUDE.md](CLAUDE.md#definition-of-done) içinde.
 
 ## Lisans
 
