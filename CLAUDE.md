@@ -19,6 +19,7 @@ npm test               # vitest run (tests/**/*.test.ts)
 npx vitest run tests/dates.test.ts        # one file
 npx vitest run -t "name of the test"      # one test by name
 npm run build
+npm run screenshots    # re-take the README screenshots from demo data (needs Playwright + Chromium)
 ```
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build in that order.
@@ -26,6 +27,22 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build in that ord
 On a fresh database the server prints a one-time setup code to the logs; `/register` needs it to create the only (admin) account. `SETUP_TOKEN` pins it. `.env.example` lists every env var.
 
 `README.md` and `README.tr.md` are translations of each other; change both together.
+
+## Definition of done
+
+Every feature or behavior change ships, in the same PR, with all of the following. A PR that misses one is not done; check each item before opening or updating it.
+
+1. **Tests.** Add or update tests for the changed behavior. Pure logic goes in `tests/*.test.ts`; anything that reads or writes the database (Server Actions, the agent run queue, the routine scheduler, backup/restore) gets a test in `tests/db/` against the in-memory PGlite (see "Tests" below). A bug fix comes with a test that fails without it.
+2. **README.md and README.tr.md.** Update the feature list, setup, env vars and project structure where they changed, in both languages. If the UI changed, run `npm run screenshots` and commit the new images; add a screenshot for a new page or dialog to the script. The agent/OpenClaw screenshots are taken by hand: say in the PR if they are now out of date.
+3. **CLAUDE.md.** Update it when a convention, command or architectural rule changes.
+4. **GitHub About.** If the change adds or removes a headline feature, update the repository's About description and topics (`gh repo edit m-aziz-algullu/task-panel --description "…" --add-topic …`) and keep `package.json`'s `description` matching. Without access, put the exact text in the PR description for the owner to paste.
+5. **CI green.** `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` all pass (CI runs them in that order on every PR).
+
+The PR template (`.github/pull_request_template.md`) repeats this list as a checklist; fill it in.
+
+## Tests
+
+`tests/*.test.ts` import only pure modules (no `import "server-only"`), plus `docker/openclaw-bootstrap.mjs` and `docker/control-ui-proxy.mjs`. `tests/db/*.test.ts` run server code against a real database: each file sets `PGLITE_DIR=memory://` in `vi.hoisted` (so `getDb()` builds an in-memory PGlite with every migration applied), mocks `server-only`, `next/cache`, `next/server`, `@/lib/session` and the OpenClaw connection/worker, and calls `resetDb()` from `tests/db/helpers.ts` in `beforeEach`. Add new tables to `TABLES` there.
 
 ## Architecture
 
@@ -51,6 +68,6 @@ On a fresh database the server prints a one-time setup code to the logs; `/regis
 - `settings.ts` / `settings-shape.ts`: agent settings, stored as JSON under one key in `app_settings`; edited on the `/agent` page.
 - `claude-auth.ts` / `claude-status.ts` plus `api/agent/claude`: how OpenClaw reaches Claude (subscription or API key), as shown in the UI; Task Panel never sees the credentials. `api/agent/options` serves what the run panel offers: the Gateway's agents and configured models, plus the defaults.
 
-Files named `*-shape.ts` (and other modules without `import "server-only"`) are pure and safe for Client Components and tests. Tests only import those, plus `docker/openclaw-bootstrap.mjs` and `docker/control-ui-proxy.mjs`.
+Files named `*-shape.ts` (and other modules without `import "server-only"`) are pure and safe for Client Components and unit tests; server modules are tested from `tests/db/` (see "Tests").
 
 **Docker.** The default image runs `docker/supervisor.mjs`, which starts the OpenClaw Gateway (loopback only, as user `node`, home on `/data`) and the Next standalone server (as `nextjs`) in one container. `docker/openclaw-bootstrap.mjs` rewrites the Gateway's managed config on every start (allowed tools, bundled skills, context limits, web search provider), and the app's env never reaches the Gateway. On a start-first redeploy (Dokploy) the old container's Gateway still owns `/data` and OpenClaw refuses config writes until it stops, so the supervisor starts the app first and retries the config write in the background before starting the Gateway; keep the OpenClaw CLI calls async, since the proxy shares that process. With the agent on, the public port belongs to `docker/control-ui-proxy.mjs`: it passes everything to Next (moved to 127.0.0.1:3001, headers untouched) except `/openclaw`, `/__openclaw__` and every WebSocket, which go to the Gateway's Control UI once `/api/agent/control-ui/session` confirms the session; to the Gateway those requests look local (forwarded headers stripped, Host/Origin rewritten), so the proxy's session and same-origin checks are the only gate. `/api/agent/control-ui` hands the token over in a `#token=` fragment. `docker build --target plain .` builds the image without the agent; `TASKPANEL_AGENT=off` disables it at runtime. `next.config.ts` keeps PGlite and the OpenClaw/`ws` packages unbundled and traced in whole; keep that when adding similar runtime-resolved deps.

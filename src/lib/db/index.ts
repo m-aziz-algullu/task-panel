@@ -31,10 +31,12 @@ async function connect(): Promise<Db> {
 
   if (process.env.NODE_ENV === "production") throw new Error(MISSING_DATABASE_URL);
 
-  const { mkdir } = await import("node:fs/promises");
   const dir = process.env.PGLITE_DIR || "./.data/pglite";
-  // PGlite only creates the last path segment itself.
-  await mkdir(dir, { recursive: true });
+  if (!dir.startsWith("memory://")) {
+    const { mkdir } = await import("node:fs/promises");
+    // PGlite only creates the last path segment itself.
+    await mkdir(dir, { recursive: true });
+  }
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
   return drizzle(await PGlite.create(dir), { schema }) as unknown as Db;
