@@ -1,7 +1,7 @@
 {
   "name": "task-panel",
   "version": "0.1.0",
-  "description": "Self-hosted single-user kanban board: tags, story points, due dates, scheduled routines, a day-by-day archive of finished tasks, backup and restore, and an optional bundled AI agent (OpenClaw) with Web Push notifications when it finishes or needs you. TR/EN UI.",
+  "description": "Self-hosted single-user kanban board with tags, story points, scheduled routines, a day-by-day archive, an optional bundled AI agent (OpenClaw) and Web Push notifications when it finishes or needs you. Next.js + PostgreSQL, English/Turkish UI.",
   "license": "MIT",
   "private": true,
   "scripts": {
