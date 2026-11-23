@@ -5,7 +5,7 @@
 
 [English](README.md) · **Türkçe**
 
-Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinle etiketler, story point'ler, her taskın bir günü ve son tarihi var; zamanlanmış rutinler senin yerine task oluşturur. Biten tasklar gece yarısı panodan kalkıp gün gün listelenen bir arşive geçer. İstersen gömülü bir yapay zekâ ajanı ona verdiğin tasklar üzerinde çalışır.
+Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinle etiketler, story point'ler, her taskın bir günü ve son tarihi var; zamanlanmış rutinler senin yerine task oluşturur. Biten tasklar gece yarısı panodan kalkıp gün gün listelenen bir arşive geçer. İstersen gömülü bir yapay zekâ ajanı ona verdiğin tasklar üzerinde çalışır; işi bittiğinde ya da seni beklediğinde anlık bildirim gelir.
 
 ![Pano](docs/screenshots/board-light.png)
 
@@ -27,6 +27,7 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
   - Taskta **Ajana ver** bir çalışmayı kuyruğa ekler: task In Progress'e geçer, ajan raporunu yorum olarak yazar ve taskı ilerletir (varsayılan olarak Pending'e). Her çalışmanın kendi modeli, düşünme seviyesi, süre sınırı ve token bütçesi vardır (Basit, Orta ya da Zor; ajanın uyduğu yumuşak bir bütçe ya da Task Panel'in uyguladığı sert bir bütçe).
   - Seçtiğin bir etiketi eklemek taskı ajana otomatik verir. Ajanın üzerinde çalıştığı bir taska yazdığın yorum aynı konuşmayı sürdürür.
   - **Ajan** sayfası bağlantıyı ve Claude girişini gösterir, varsayılanları tutar (model, bütçeler, aynı anda kaç çalışma olacağı, biten ya da takılan taskların nereye gideceği, kalıcı talimatlar) ve OpenClaw'ın kendi arayüzünü açar.
+- **Anlık bildirimler:** *Ayarlar*'dan her tarayıcı ya da telefon için ayrı açılır; ajan bir taskı bitirdiğinde ya da durup seni beklediğinde (takıldığında, bütçesi ya da süresi bittiğinde, hata aldığında) raporunun başıyla birlikte bildirim gelir, tıklayınca task açılır. Standart Web Push (VAPID, üçüncü parti hesap gerekmez) ve yeniden deneme sayesinde bildirim yeniden başlatmada ya da bildirim servisindeki bir aksaklıkta kaybolmaz. [Bildirimler](#bildirimler) bölümüne bak.
 - **Yedekleme ve geri yükleme:** *Ayarlar* sayfası oluşturduğun her şeyi (etiketleri ve yorumlarıyla tasklar, etiketler, rutinler ve ajan ayarları) tek bir JSON dosyası olarak indirir, paneli de böyle bir dosyadan tek adımda geri yükler. Geri yükleme panoyu baştan kurar, her `#id` aynı kalır; aktif bir ajan çalışması varken yapılmaz. Hesabın ve ajan çalışma geçmişi dahil değildir.
 - **Türkçe ve İngilizce** arayüz. Tarayıcı diline göre seçilir, header'dan değiştirilebilir.
 - Açık ve koyu tema.
@@ -38,6 +39,17 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 *Ayarlar* sayfası tüm paneli tek bir JSON dosyası olarak indirir ve böyle bir dosyadan geri yükler.
 
 ![Yedekleme ve geri yükleme ile Ayarlar sayfası](docs/screenshots/settings-light.png)
+
+## Bildirimler
+
+*Ayarlar* → *Bildirimler* → *Bu cihazda aç* tarayıcıdan izin ister ve onu abone eder. Bundan sonra bir ajan çalışması bittiğinde açtığın her cihaza bildirim gelir: *Ajan bitirdi: …* ya da *Ajan seni bekliyor: …*, altında ajanın raporunun başı ya da durma sebebi. Tıklayınca task panoda açılır. Kendi durdurduğun bir çalışma bildirim göndermez. *Deneme gönder* bildirim servisinin bildirimi kabul edip etmediğini hemen gösterir; cihaz listesi her cihazın son teslimini ya da hatasını gösterir.
+
+![Ayarlar'da bildirimler](docs/screenshots/notifications-light.png)
+
+- Chrome, Edge, Firefox ve Safari'de (macOS) her HTTPS adresinde (ya da `localhost`'ta) çalışır. iPhone ve iPad'de Safari bunu yalnızca Ana Ekran'a eklenmiş sitelere izin verir: *Paylaş* → *Ana Ekrana Ekle*, Task Panel'i oradan aç, sonra bildirimleri aç.
+- Ayar gerekmez: sunucu ilk kullanımda bir VAPID anahtar çifti üretir ve veritabanında saklar; böylece yeniden deploy'da kaybolmaz (yedeklere dahil değildir). Anahtarları kendin yönetmek istersen `VAPID_PUBLIC_KEY` ve `VAPID_PRIVATE_KEY` ver (`npx web-push generate-vapid-keys`). Anahtarlar değişirse tarayıcılar uygulama bir sonraki açılışta yeniden abone olur.
+- Bildirimler çalışmayı bitiren veritabanı transaction'ı içinde bir outbox'a yazılır, sonra gönderilir; çalışmayan ya da yavaşlatan bir bildirim servisi artan aralıklarla yeniden denenir (bir gün içinde en fazla 8 deneme). Aboneliği biten ya da kaldırılan bir cihaz (404/410) otomatik silinir.
+- Apple'ın bildirim servisi VAPID iletişim adresini kontrol eder: varsayılan olarak yönetici hesabının e-postasıdır. Gerçek bir adres değilse `VAPID_SUBJECT` ver (`mailto:sen@ornek.com` ya da bir `https://` adresi).
 
 ## Zamanlanmış rutinler
 
@@ -172,6 +184,8 @@ Herkes kendi hesabıyla giriş yapar ve giriş her zaman Anthropic'in akışınd
 | `PGLITE_DIR` | Hayır | Sadece geliştirme: gömülü veritabanının klasörü. |
 | `TASKPANEL_AGENT` | Hayır | `off` verilirse ajan imajı OpenClaw'ı başlatmaz. |
 | `TASKPANEL_BROWSER_SANDBOX` | Hayır | `on` verilirse ajanın tarayıcısı Chromium'un kendi sandbox'ıyla çalışır; container'a `SYS_ADMIN` ya da uygun bir seccomp profili gerekir. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Hayır | Web Push anahtar çifti (URL-safe base64; ikisi birden ya da hiçbiri). Verilmezse üretilip veritabanında saklanır. |
+| `VAPID_SUBJECT` | Hayır | Bildirim servisleri için iletişim adresi: `mailto:` ya da `https://` adresi. Varsayılan: yönetici hesabının e-postası (`mailto:`). |
 | `OPENCLAW_GATEWAY_TOKEN` | Hayır | Gateway token'ını kendin sabitlemek istersen. Verilmezse üretilip `/data/secrets` altında saklanır. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | Hayır | Model sağlayıcı anahtarları, OpenClaw'a aktarılır. |
 
@@ -179,7 +193,7 @@ Sağlık kontrolü: `GET /api/health`.
 
 ## Teknolojiler
 
-Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit, TipTap ve ajan için [OpenClaw](https://openclaw.ai). Şifreler scrypt ile hash'lenir; oturumlar rastgele token'lardır ve veritabanında SHA-256 hash'i olarak tutulur.
+Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit, TipTap, Web Push (`web-push`) ve ajan için [OpenClaw](https://openclaw.ai). Şifreler scrypt ile hash'lenir; oturumlar rastgele token'lardır ve veritabanında SHA-256 hash'i olarak tutulur.
 
 ## Proje yapısı
 
@@ -189,6 +203,9 @@ src/app/[lang]/(auth)/         Kurulum (ilk yönetici), giriş, çıkış
 src/app/actions.ts             Task, yorum, etiket, rutin ve ajan çalışması Server Action'ları
 src/app/api/health/            Sağlık kontrolü
 src/app/api/backup/            Yedek indirme ve geri yükleme
+src/app/api/push/              Bildirim aboneliği, VAPID açık anahtarı, deneme bildirimi
+src/app/manifest.ts            Web uygulaması manifest'i (Ana Ekran'a ekleme; iOS'ta bildirim için gerekli)
+public/sw.js                   Service worker: bildirimleri gösterir, tıklanınca taskı açar
 src/app/api/agent/             Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
 docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
@@ -206,6 +223,7 @@ src/lib/routine-schedule*.ts   Rutin zamanlamaları (cron) ve task'larını olu�
 src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
 src/lib/backup*.ts             Yedek dosyasının yapısı ve hep-ya-hiç geri yükleme
 src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, ayarlar
+src/lib/push/                  Web Push: VAPID anahtarları, abonelikler, outbox ve gönderim döngüsü, bildirim metinleri
 src/lib/openclaw/              OpenClaw Gateway bağlantısı
 src/components/                Arayüz
 tests/                         Birim testleri; tests/db/ gerçek (bellekte) bir veritabanında çalışır

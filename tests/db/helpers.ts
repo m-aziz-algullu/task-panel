@@ -5,6 +5,8 @@ import { sql } from "drizzle-orm";
 import { getDb, type Db } from "@/lib/db";
 
 export const TABLES = [
+  "push_deliveries",
+  "push_subscriptions",
   "task_tags",
   "task_comments",
   "agent_runs",

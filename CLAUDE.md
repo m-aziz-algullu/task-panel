@@ -42,7 +42,7 @@ The PR template (`.github/pull_request_template.md`) repeats this list as a chec
 
 ## Tests
 
-`tests/*.test.ts` import only pure modules (no `import "server-only"`), plus `docker/openclaw-bootstrap.mjs` and `docker/control-ui-proxy.mjs`. `tests/db/*.test.ts` run server code against a real database: each file sets `PGLITE_DIR=memory://` in `vi.hoisted` (so `getDb()` builds an in-memory PGlite with every migration applied), mocks `server-only`, `next/cache`, `next/server`, `@/lib/session` and the OpenClaw connection/worker, and calls `resetDb()` from `tests/db/helpers.ts` in `beforeEach`. Add new tables to `TABLES` there.
+`tests/*.test.ts` import only pure modules (no `import "server-only"`), plus `docker/openclaw-bootstrap.mjs` and `docker/control-ui-proxy.mjs`; `public/sw.js` is run in a fake service worker global (`node:vm`). `tests/db/*.test.ts` run server code against a real database: each file sets `PGLITE_DIR=memory://` in `vi.hoisted` (so `getDb()` builds an in-memory PGlite with every migration applied), mocks `server-only`, `next/cache`, `next/server`, `@/lib/session` and the OpenClaw connection/worker, and calls `resetDb()` from `tests/db/helpers.ts` in `beforeEach`. Add new tables to `TABLES` there.
 
 ## Architecture
 
@@ -58,7 +58,9 @@ The PR template (`.github/pull_request_template.md`) repeats this list as a chec
 
 **Rich text.** Task descriptions are TipTap documents (`src/lib/rich-text/`, editor in `src/components/rich-text/`). `document.ts` validates every save on the server against the schema from `extensions.ts`, the palette in `marks.ts` and `isAllowedHref`, so a new extension, mark or color must be added there too or saves will reject it.
 
-**Startup.** `src/instrumentation-node.ts` connects to the DB, prints the setup code, starts the routine scheduler, and if the agent is enabled warms the Gateway connection and starts the agent worker.
+**Push notifications.** Web Push with VAPID (`web-push` builds the encrypted request, `fetch` sends it), in `src/lib/push/`. `finalizeRun` queues the notification inside the transaction that ends the run, in a savepoint (`queueRunEndPush`), so a run that ends always has one and a push problem never stops a run from ending; every outcome except `aborted` notifies. `push_deliveries` is an outbox, one row per notification and browser; `dispatcher.ts` is an in-process loop (started at boot, poked after a run ends) that claims due rows with a lease (`FOR UPDATE SKIP LOCKED`), deletes them once delivered, drops the subscription on 404/410, retries 408/429/5xx/network errors with backoff (honouring `Retry-After`, `MAX_PUSH_ATTEMPTS`, one-day TTL) and records the last error on the subscription for the Settings page. VAPID keys come from `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` or are generated once into `app_settings` (`push.vapid`, never in backups); a subscription made with another key is dropped, and `PushSync` in the panel layout resubscribes the browser. Subscriptions go through route handlers under `api/push` (not Server Actions) because the service worker calls them on `pushsubscriptionchange`; they check the session and same-origin (`src/lib/http.ts`). Notification text is rendered per subscription in its stored locale (`notification.ts`, keys under `push.*`). `public/sw.js` shows the notification and opens `/<lang>?task=<id>`, which the board turns into an open task dialog. `src/app/manifest.ts` exists so iOS can install the app (it only allows push for Home Screen apps); there is no offline caching.
+
+**Startup.** `src/instrumentation-node.ts` connects to the DB, prints the setup code, starts the routine scheduler and the push dispatcher, and if the agent is enabled warms the Gateway connection and starts the agent worker.
 
 **Agent (OpenClaw).** `src/lib/openclaw/` connects to the Gateway (token from env or `.data/secrets` in dev). `src/lib/agent/`:
 - `runs.ts`: `agent_runs` rows act as a DB-backed queue (enqueue / claim / finalize).

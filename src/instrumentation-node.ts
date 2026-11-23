@@ -18,6 +18,9 @@ if (process.env.NEXT_PHASE !== "phase-production-build") {
       // Scheduled routines create their tasks with or without the agent.
       const { startRoutineScheduler } = await import("@/lib/routine-scheduler");
       startRoutineScheduler();
+      // Web Push notifications queued while the server was down go out now.
+      const { startPushDispatcher } = await import("@/lib/push/dispatcher");
+      startPushDispatcher();
     })
     .then(async () => {
       // The bundled OpenClaw agent: connect to the Gateway and start running queued tasks.

@@ -25,6 +25,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: t("meta.appName"), template: `%s · ${t("meta.appName")}` },
     description: t("meta.description"),
+    // Home Screen install (iOS delivers Web Push only to installed web apps).
+    icons: { apple: "/apple-touch-icon.png" },
+    appleWebApp: { capable: true, title: t("meta.appName"), statusBarStyle: "default" },
   };
 }
 

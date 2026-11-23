@@ -184,4 +184,41 @@ export const MIGRATIONS: { version: number; statements: string[] }[] = [
       `ALTER TABLE tasks ALTER COLUMN due_date SET NOT NULL`,
     ],
   },
+  {
+    version: 13,
+    statements: [
+      // Browsers (Web Push subscriptions) that get a notification when an agent run ends.
+      // vapid_public_key: the server key the browser subscribed with; after a key change
+      // the push service refuses the old subscriptions, so they're dropped.
+      `CREATE TABLE push_subscriptions (
+        id serial PRIMARY KEY,
+        user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        endpoint text NOT NULL UNIQUE,
+        p256dh text NOT NULL,
+        auth text NOT NULL,
+        vapid_public_key text NOT NULL,
+        locale text NOT NULL,
+        user_agent text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_success_at timestamptz,
+        last_failure_at timestamptz,
+        last_error text
+      )`,
+      // Outbox: one row per notification and browser, written in the same transaction
+      // as what it reports, so nothing is lost to a crash; deleted once delivered.
+      `CREATE TABLE push_deliveries (
+        id serial PRIMARY KEY,
+        subscription_id integer NOT NULL REFERENCES push_subscriptions (id) ON DELETE CASCADE,
+        payload jsonb NOT NULL,
+        topic text,
+        attempts integer NOT NULL DEFAULT 0,
+        next_attempt_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL,
+        last_error text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`,
+      `CREATE INDEX push_deliveries_due_idx ON push_deliveries (next_attempt_at)`,
+      `CREATE INDEX push_deliveries_subscription_idx ON push_deliveries (subscription_id)`,
+    ],
+  },
 ];
