@@ -236,6 +236,19 @@ export function Board({
     [columns, statusOf],
   );
 
+  // A notification links to /?task=<id>: open that task once, then drop the parameter.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const wanted = Number(url.searchParams.get("task"));
+    if (!url.searchParams.has("task")) return;
+    url.searchParams.delete("task");
+    window.history.replaceState(window.history.state, "", url);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (serverTasks.some((task) => task.id === wanted)) setDialog({ kind: "edit", taskId: wanted });
+    // Only on arrival; later refreshes must not reopen it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openTask = (task: Task) => {
     // A drag ends with a click on the card it started from; don't treat that as "open".
     if (Date.now() - lastDragEnd.current < 250) return;

@@ -11,6 +11,7 @@
 // signed-in model, so this script leaves them alone; take those by hand.
 
 import { spawn } from "node:child_process";
+import { createECDH, randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -194,6 +195,74 @@ async function waitForServer(url, child) {
   throw new Error(`The dev server did not answer at ${url}.`);
 }
 
+/** A fake browser subscription (no push service is ever called for screenshots). */
+function demoSubscription(name) {
+  const ecdh = createECDH("prime256v1");
+  ecdh.generateKeys();
+  return {
+    endpoint: `https://fcm.googleapis.com/fcm/send/demo-${name}`,
+    expirationTime: null,
+    keys: { p256dh: ecdh.getPublicKey().toString("base64url"), auth: randomBytes(16).toString("base64url") },
+  };
+}
+
+/**
+ * The Settings page with notifications on for "this device" and a phone. The
+ * browser's PushManager is stubbed: headless Chromium can't reach a real push
+ * service, and nothing is sent anyway.
+ */
+async function openWithPush(light, cookies) {
+  const ctx = await light.browser().newContext({
+    viewport: { width: 1712, height: 980 },
+    deviceScaleFactor: 1,
+    colorScheme: "light",
+    locale: "en-US",
+    timezoneId: TZ,
+  });
+  await ctx.addCookies(cookies);
+  await ctx.grantPermissions(["notifications"], { origin: BASE });
+  await ctx.addInitScript((subscription) => {
+    addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = "nextjs-portal { display: none !important; }";
+      document.head.append(style);
+    });
+    if (typeof PushManager === "undefined") return;
+    const make = (key) => ({
+      endpoint: subscription.endpoint,
+      options: { applicationServerKey: key, userVisibleOnly: true },
+      toJSON: () => subscription,
+      unsubscribe: async () => true,
+    });
+    // Kept across reloads of the tab, like a real subscription.
+    PushManager.prototype.subscribe = async (options) => {
+      sessionStorage.setItem("demoPushKey", JSON.stringify([...new Uint8Array(options.applicationServerKey)]));
+      return make(options.applicationServerKey);
+    };
+    PushManager.prototype.getSubscription = async () => {
+      const saved = sessionStorage.getItem("demoPushKey");
+      return saved ? make(new Uint8Array(JSON.parse(saved)).buffer) : null;
+    };
+  }, demoSubscription("desktop"));
+  const p = await ctx.newPage();
+  await p.goto(`${BASE}/en/settings`);
+  await p.getByRole("button", { name: "Turn on for this device" }).click();
+  await p.getByText("On for this device.").waitFor();
+  const { data } = await (await p.request.get(`${BASE}/api/push`)).json();
+  await p.request.post(`${BASE}/api/push/subscription`, {
+    data: JSON.stringify({ subscription: demoSubscription("phone"), publicKey: data.publicKey, locale: "en" }),
+    headers: {
+      "Content-Type": "application/json",
+      Origin: BASE,
+      "User-Agent": "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36",
+    },
+  });
+  await p.reload();
+  await p.getByText("On for this device.").waitFor();
+  await p.waitForLoadState("networkidle");
+  return p;
+}
+
 async function main() {
   const { chromium } = loadPlaywright();
   const dataDir = await mkdtemp(path.join(tmpdir(), "task-panel-shots-"));
@@ -221,7 +290,9 @@ async function main() {
   };
   process.on("exit", stop);
 
-  const browser = await chromium.launch();
+  // The full Chromium build: the headless shell always reports notifications as
+  // blocked, which the Settings screenshot can't use.
+  const browser = await chromium.launch({ channel: "chromium" }).catch(() => chromium.launch());
   try {
     await waitForServer(`${BASE}/api/health`, server);
     const shots = [];
@@ -309,7 +380,13 @@ async function main() {
       await p.waitForTimeout(300);
       await save(p, "routine-schedule-light");
     });
-    shot("settings-light", async () => save(await open("light", "/en/settings"), "settings-light"));
+    shot("settings-light", async () => {
+      const p = await openWithPush(light, cookies);
+      await save(p, "settings-light");
+      await p
+        .getByRole("region", { name: "Notifications" })
+        .screenshot({ path: path.join(outDir, "notifications-light.png") });
+    });
 
     for (const [name, run] of shots) {
       await run();

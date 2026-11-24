@@ -5,7 +5,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A self-hosted, single-user kanban board for your own tasks. Tags with your own colors, story points, a day and a due date on every task, scheduled routines that create tasks for you, and finished tasks that leave the board at midnight and land in a day-by-day archive. Optionally, a bundled AI agent works on the tasks you hand it.
+A self-hosted, single-user kanban board for your own tasks. Tags with your own colors, story points, a day and a due date on every task, scheduled routines that create tasks for you, and finished tasks that leave the board at midnight and land in a day-by-day archive. Optionally, a bundled AI agent works on the tasks you hand it, and a push notification tells you when it is done or needs you.
 
 ![Board](docs/screenshots/board-light.png)
 
@@ -27,6 +27,7 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
   - **Hand to agent** in a task queues a run: the task moves to In Progress, the agent posts its report as a comment and moves the task on (to Pending by default). Each run has its own model, thinking level, time limit and token budget (Simple, Medium or Hard; a soft budget the agent keeps to, or a hard one Task Panel enforces).
   - Adding a tag you choose hands a task to the agent automatically. A comment on a task the agent has worked on continues the same conversation.
   - The **Agent** page shows the connection and Claude sign-in, holds the defaults (model, budgets, how many runs at once, where finished or stuck tasks go, standing instructions) and opens OpenClaw's own interface.
+- **Push notifications:** turn them on per browser or phone in *Settings* and you get a notification when the agent finishes a task or stops and needs you (stuck, out of budget or time, failed), with the start of its report; clicking it opens the task. Standard Web Push (VAPID, no third-party account), with retries, so a notification survives a restart or a push service hiccup. See [Notifications](#notifications).
 - **Backup and restore:** *Settings* downloads everything you made (tasks with their tags and comments, tags, routines and agent settings) as one JSON file, and restores the panel from such a file in one step. A restore replaces the board, keeps every `#id`, and waits until no agent run is active. Your account and agent run history aren't included.
 - **English and Turkish** UI, picked from the browser language and switchable in the header.
 - Light and dark mode.
@@ -38,6 +39,17 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 *Settings* downloads the whole panel as one JSON file and restores it from such a file.
 
 ![Settings page with backup and restore](docs/screenshots/settings-light.png)
+
+## Notifications
+
+*Settings* → *Notifications* → *Turn on for this device* asks the browser for permission and subscribes it. From then on, when an agent run ends you get a notification on every device you turned on: *Agent finished: …* or *Agent needs you: …*, with the start of the agent's report or the reason it stopped. Clicking it opens the task on the board. A run you stop yourself doesn't notify. *Send a test* shows right away whether the push service accepts the notification, and the device list shows the last delivery or error per device.
+
+![Notifications in Settings](docs/screenshots/notifications-light.png)
+
+- Works in Chrome, Edge, Firefox and Safari (macOS) on any HTTPS address (or `localhost`). On iPhone and iPad, Safari only allows it for a site added to the Home Screen: *Share* → *Add to Home Screen*, open Task Panel from there, then turn notifications on.
+- Nothing to configure: on first use the server generates a VAPID key pair and keeps it in the database, so it survives redeploys (it isn't part of backups). To manage the keys yourself, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (`npx web-push generate-vapid-keys`). If the keys change, browsers subscribe again the next time the app is opened.
+- Notifications are written to an outbox in the same database transaction that ends the run, then sent; a push service that is down or throttling is retried with backoff (up to 8 tries within a day). A device that unsubscribed or expired (404/410) is removed automatically.
+- Apple's push service checks the VAPID contact address: by default it's the admin account's email. If that isn't a real address, set `VAPID_SUBJECT` (`mailto:you@example.com` or an `https://` URL).
 
 ## Scheduled routines
 
@@ -172,6 +184,8 @@ Each person signs in with their own account, and the sign-in always completes in
 | `PGLITE_DIR` | No | Development only: where the embedded database is stored. |
 | `TASKPANEL_AGENT` | No | `off` keeps the agent image from starting OpenClaw. |
 | `TASKPANEL_BROWSER_SANDBOX` | No | `on` keeps Chromium's own sandbox for the agent's browser; the container then needs `SYS_ADMIN` or a matching seccomp profile. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | No | Web Push key pair (URL-safe base64, both or neither). If unset, one is generated and kept in the database. |
+| `VAPID_SUBJECT` | No | Contact for push services: `mailto:` or `https://` URL. Default: `mailto:` the admin account's email. |
 | `OPENCLAW_GATEWAY_TOKEN` | No | Pin the Gateway token yourself. If unset it is generated and kept in `/data/secrets`. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, … | No | Model provider keys, passed on to OpenClaw. |
 
@@ -179,7 +193,7 @@ Health check: `GET /api/health`.
 
 ## Tech stack
 
-Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit, TipTap, and [OpenClaw](https://openclaw.ai) for the agent. Passwords are hashed with scrypt; sessions are random tokens stored as SHA-256 hashes.
+Next.js 16 (App Router, Cache Components, Server Actions), React 19, Tailwind CSS 4, Drizzle ORM, PostgreSQL, dnd-kit, TipTap, Web Push (`web-push`), and [OpenClaw](https://openclaw.ai) for the agent. Passwords are hashed with scrypt; sessions are random tokens stored as SHA-256 hashes.
 
 ## Project structure
 
@@ -189,6 +203,9 @@ src/app/[lang]/(auth)/         Setup (first admin), sign-in, sign-out
 src/app/actions.ts             Server Actions for tasks, comments, tags, routines and agent runs
 src/app/api/health/            Health check
 src/app/api/backup/            Backup download and restore
+src/app/api/push/              Push subscription, VAPID public key, test notification
+src/app/manifest.ts            Web app manifest (Home Screen install, needed for push on iOS)
+public/sw.js                   Service worker: shows push notifications, opens the task on click
 src/app/api/agent/             Claude sign-in status, run options, Control UI session
 docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
@@ -206,6 +223,7 @@ src/lib/routine-schedule*.ts   Routine schedules (cron) and the loop that create
 src/lib/rich-text/             Description schema, checked on every save
 src/lib/backup*.ts             Backup file shape and the all-or-nothing restore
 src/lib/agent/                 Agent run queue and worker, prompts, settings
+src/lib/push/                  Web Push: VAPID keys, subscriptions, outbox and delivery loop, notification text
 src/lib/openclaw/              Connection to the OpenClaw Gateway
 src/components/                UI
 tests/                         Unit tests; tests/db/ runs against a real (in-memory) database

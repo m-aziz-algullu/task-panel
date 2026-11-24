@@ -1,7 +1,7 @@
 {
   "name": "task-panel",
   "version": "0.1.0",
-  "description": "Self-hosted single-user kanban board: tags, story points, due dates, scheduled routines, a day-by-day archive of finished tasks, backup and restore, and an optional bundled AI agent (OpenClaw). TR/EN UI.",
+  "description": "Self-hosted single-user kanban board with tags, story points, scheduled routines, a day-by-day archive, an optional bundled AI agent (OpenClaw) and Web Push notifications when it finishes or needs you. Next.js + PostgreSQL, English/Turkish UI.",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -41,6 +41,7 @@
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
     "server-only": "^0.0.1",
+    "web-push": "^4.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -48,6 +49,7 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "eslint": "^10",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",

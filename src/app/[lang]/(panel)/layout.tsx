@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import { Suspense } from "react";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { NavLinks } from "@/components/nav-links";
+import { PushSync } from "@/components/push-sync";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getI18n } from "@/i18n/server";
 import { getCurrentUser } from "@/lib/session";
@@ -48,6 +49,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+      <PushSync />
     </>
   );
 }

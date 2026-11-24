@@ -1,4 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
+import type { PushPayload } from "../push/shape";
 import type { RoutineSchedule } from "../routine-schedule";
 import { boolean, date, doublePrecision, integer, jsonb, pgTable, primaryKey, serial, text, timestamp } from "drizzle-orm/pg-core";
 
@@ -120,4 +121,40 @@ export const authAttempts = pgTable("auth_attempts", {
   id: serial("id").primaryKey(),
   key: text("key").notNull(),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  /** The application server key the browser subscribed with. */
+  vapidPublicKey: text("vapid_public_key").notNull(),
+  /** Language the notifications are written in: the UI's when the browser subscribed. */
+  locale: text("locale").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastFailureAt: timestamp("last_failure_at", { withTimezone: true }),
+  lastError: text("last_error"),
+});
+
+export const pushDeliveries = pgTable("push_deliveries", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id")
+    .notNull()
+    .references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+  /** PushPayload as JSON; encrypted for the browser on every attempt. */
+  payload: jsonb("payload").$type<PushPayload>().notNull(),
+  /** Push service Topic header: a newer message with the same topic replaces an undelivered one. */
+  topic: text("topic"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Past this the notification is stale and dropped instead of sent. */
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

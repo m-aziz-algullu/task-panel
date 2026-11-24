@@ -3,6 +3,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { schema, type Db } from "../db";
+import { queueRunEndPush } from "../push/delivery";
+import { pokePushDispatcher } from "../push/dispatcher";
+import { notifiesRunEnd } from "../push/notification";
 import { moveTaskTo } from "../task-status";
 import {
   ACTIVE_RUN_STATUSES,
@@ -182,8 +185,9 @@ export async function addRunComment(db: Db, run: Pick<RunRow, "id" | "taskId">, 
 /**
  * Ends a queued or running run, once: the agent's report, a budget stop, a
  * failure and the user's stop button can race, and only the first one counts.
- * Writes the run's closing comment and moves the task. Returns false if the run
- * had already ended.
+ * Writes the run's closing comment, moves the task and queues the push
+ * notification (unless the user stopped it). Returns false if the run had
+ * already ended.
  */
 export async function finalizeRun(
   db: Db,
@@ -196,7 +200,7 @@ export async function finalizeRun(
     moveTo?: Status;
   },
 ): Promise<boolean> {
-  return db.transaction(async (tx) => {
+  const ended = await db.transaction(async (tx) => {
     const ended = await tx
       .update(agentRuns)
       .set({
@@ -210,6 +214,12 @@ export async function finalizeRun(
     if (ended.length === 0) return false;
     if (outcome.comment) await addRunComment(tx, run, outcome.comment.author, outcome.comment.body);
     if (outcome.moveTo) await moveTaskTo(tx, run.taskId, outcome.moveTo);
+    // In the same transaction: the notification exists exactly when the run has ended.
+    if (notifiesRunEnd(outcome.status)) {
+      await queueRunEndPush(tx, { taskId: run.taskId, status: outcome.status, comment: outcome.comment });
+    }
     return true;
   });
+  if (ended) pokePushDispatcher();
+  return ended;
 }

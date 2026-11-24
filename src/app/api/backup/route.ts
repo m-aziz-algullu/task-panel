@@ -4,6 +4,7 @@ import { BackupError, exportBackup, restoreBackup } from "@/lib/backup";
 import { MAX_BACKUP_BYTES, backupFileName, parseBackup } from "@/lib/backup-shape";
 import { getClock } from "@/lib/data";
 import { getDb } from "@/lib/db";
+import { readCapped, sameOrigin } from "@/lib/http";
 import { InvalidDocumentError } from "@/lib/rich-text/document";
 import { pokeRoutineScheduler } from "@/lib/routine-scheduler";
 import { getCurrentUser } from "@/lib/session";
@@ -30,46 +31,11 @@ export async function GET() {
   });
 }
 
-/**
- * The session cookie is SameSite=Lax, so another site can't POST with it; this
- * same-origin check is the second lock, the one Server Actions have built in.
- */
-function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim();
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
-
-/** The body as text, or null once it passes the cap; never buffers more than that. */
-async function readCapped(request: NextRequest): Promise<string | null> {
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BACKUP_BYTES) return null;
-  if (!request.body) return "";
-  const reader = request.body.getReader();
-  const parts: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_BACKUP_BYTES) {
-      await reader.cancel();
-      return null;
-    }
-    parts.push(value);
-  }
-  return Buffer.concat(parts).toString("utf8");
-}
-
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return failure("errors.invalid", 403);
   if (!(await getCurrentUser())) return failure("errors.unauthorized", 401);
 
-  const text = await readCapped(request);
+  const text = await readCapped(request, MAX_BACKUP_BYTES);
   if (text === null) return failure("errors.backupTooLarge", 413);
   let raw: unknown;
   try {
