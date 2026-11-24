@@ -5,7 +5,6 @@ import { getDb, schema, type Db } from "../db";
 import { listComments, loadTask } from "../data";
 import { GatewayUnavailableError, gatewayRequest } from "../openclaw/client";
 import { gatewayConnection } from "../openclaw/connection";
-import { moveTaskTo } from "../task-status";
 import type { LimitMode, RunStatus, Task } from "../types";
 import { continuesAfterRun, continuesSession, followUpInput, runTokens, type SessionContext } from "./continuation";
 import { buildFollowUpPrompt, buildRunPrompt, parseRunReport } from "./prompt";
@@ -14,6 +13,7 @@ import {
   claimNextRun,
   enqueueRun,
   finalizeRun,
+  markRunStarted,
   newSessionKey,
   requeueRun,
   runById,
@@ -46,13 +46,17 @@ class NewSessionNeeded extends Error {}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** The OpenClaw session's token total so far; null before anything is recorded. */
+/**
+ * The OpenClaw session's token total so far; null when it can't be read (not
+ * recorded yet right after the session starts, or the call failed). Throws
+ * GatewayUnavailableError while the Gateway is unreachable.
+ */
 async function sessionTokens(sessionKey: string): Promise<number | null> {
   try {
     const usage = await gatewayRequest<{ totals?: { totalTokens?: number } }>("sessions.usage", { key: sessionKey });
     return usage.totals?.totalTokens ?? null;
-  } catch {
-    // Not recorded yet right after the session starts.
+  } catch (error) {
+    if (error instanceof GatewayUnavailableError) throw error;
     return null;
   }
 }
@@ -84,10 +88,11 @@ function failure(reason: string) {
   };
 }
 
-class AgentWorker {
+export class AgentWorker {
   private watching = new Set<number>();
   private timer: ReturnType<typeof setInterval> | undefined;
-  private ticking = false;
+  private ticking: Promise<void> | undefined;
+  private work = new Set<Promise<void>>();
 
   start() {
     if (this.timer) return;
@@ -100,9 +105,21 @@ class AgentWorker {
     void this.tick();
   }
 
-  private async tick() {
-    if (this.ticking) return;
-    this.ticking = true;
+  /** Resolves once no tick and no run this worker follows is in flight. */
+  async idle(): Promise<void> {
+    while (this.ticking || this.work.size > 0) {
+      await Promise.allSettled([this.ticking, ...this.work]);
+    }
+  }
+
+  private tick(): Promise<void> {
+    this.ticking ??= this.runTick().finally(() => {
+      this.ticking = undefined;
+    });
+    return this.ticking;
+  }
+
+  private async runTick() {
     try {
       const db = await getDb();
       const settings = await getAgentSettings(db);
@@ -121,20 +138,20 @@ class AgentWorker {
       }
     } catch (error) {
       console.error("[agent] Worker tick failed:", error);
-    } finally {
-      this.ticking = false;
     }
   }
 
   private track(db: Db, runId: number, work: () => Promise<void>) {
     this.watching.add(runId);
-    work()
+    const done: Promise<void> = work()
       .then(() => this.continueAfter(db, runId))
       .catch((error) => console.error(`[agent] Run ${runId} failed:`, error))
       .finally(() => {
         this.watching.delete(runId);
+        this.work.delete(done);
         this.poke();
       });
+    this.work.add(done);
   }
 
   /** The user commented while the run worked: carry the conversation on with them. */
@@ -192,8 +209,12 @@ class AgentWorker {
       await finalizeRun(db, current, failure(started.runError?.message ?? "the run did not start"));
       return;
     }
-    await updateRun(db, current.id, { openclawRunId: started.runId });
-    if (task.status !== "in_progress" && task.status !== "done") await moveTaskTo(db, task.id, "in_progress");
+    if (!(await markRunStarted(db, current, started.runId))) {
+      // Stopped (or its task deleted) while the turn was starting: the stop had no
+      // OpenClaw run to abort yet, so the turn would carry on unseen.
+      await abortSession({ ...current, openclawRunId: started.runId });
+      return;
+    }
     await this.watch(db, { ...current, openclawRunId: started.runId, startedAt: current.startedAt ?? new Date() });
   }
 
@@ -250,7 +271,10 @@ class AgentWorker {
     // Every turn re-reads the whole conversation; the task's comments, the agent's
     // earlier reports included, carry what matters into a new one for much less.
     if (!continuesSession(described.session)) throw new NewSessionNeeded(run.sessionKey);
-    const usageBaseline = (await sessionTokens(run.sessionKey)) ?? 0;
+    // Without it the run would be charged the whole conversation so far, and a hard
+    // budget would end it at once; a new session counts from zero instead.
+    const usageBaseline = await sessionTokens(run.sessionKey);
+    if (usageBaseline == null) throw new NewSessionNeeded(run.sessionKey);
     await updateRun(db, run.id, { usageBaseline });
     await gatewayRequest("sessions.patch", {
       key: run.sessionKey,
@@ -284,13 +308,18 @@ class AgentWorker {
     const deadline = startedAt + run.timeoutSeconds * 1000 + DEADLINE_GRACE_MS;
     let tokensUsed = run.tokensUsed;
     const spent = async () => {
-      const total = await sessionTokens(run.sessionKey);
+      const total = await sessionTokens(run.sessionKey).catch(() => null);
       return total == null ? tokensUsed : runTokens(total, run.usageBaseline);
     };
 
     while (true) {
-      // The stop button (or removing the agent tag) ended it.
-      if ((await runStatus(db, run.id)) !== "running") return;
+      const status = await runStatus(db, run.id);
+      // The stop button (or removing the agent tag) ended it, and aborted the session.
+      if (status !== "running") {
+        // Its task was deleted, and the run with it: nobody else stops the session.
+        if (status == null) await abortSession(run);
+        return;
+      }
 
       const used = await spent();
       if (used !== tokensUsed) {
@@ -340,12 +369,12 @@ class AgentWorker {
         return;
       }
 
-      const status = result.status ?? "";
+      const waited = result.status ?? "";
       // "timeout" means only that this wait slice ended; the run goes on.
-      if (status === "timeout" || status === "pending" || status === "running" || status === "") continue;
+      if (waited === "timeout" || waited === "pending" || waited === "running" || waited === "") continue;
 
       tokensUsed = await spent();
-      if (status === "cancelled" || status === "aborted") {
+      if (waited === "cancelled" || waited === "aborted") {
         await finalizeRun(db, run, {
           status: "aborted",
           tokensUsed,
@@ -353,7 +382,7 @@ class AgentWorker {
         });
         return;
       }
-      if (status === "error" || status === "failed") {
+      if (waited === "error" || waited === "failed") {
         await finalizeRun(db, run, {
           ...failure(errorText(result.error ?? result.message)),
           tokensUsed,
@@ -371,6 +400,7 @@ class AgentWorker {
         report
           ? {
               status: report.outcome,
+              error: report.missingResult ? "report without a RESULT line" : null,
               tokensUsed,
               moveTo: report.outcome === "done" ? settings.statusOnDone : settings.statusOnBlocked,
               comment: { author: "agent", body: report.body },

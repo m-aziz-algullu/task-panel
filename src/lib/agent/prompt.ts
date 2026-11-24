@@ -113,23 +113,39 @@ export function buildFollowUpPrompt(input: FollowUpInput): string {
   ].join("\n\n");
 }
 
-export type RunReport = { outcome: "done" | "blocked"; body: string };
+export type RunReport = {
+  outcome: "done" | "blocked";
+  body: string;
+  /** The message had no `RESULT:` line, so it counts as blocked: the user has to look. */
+  missingResult: boolean;
+};
 
 // `RESULT: done`, also when the model dresses it up as **RESULT: done** or `RESULT: done`.
-const RESULT_LINE = /^[\s*_`>#]*RESULT\s*:\s*(done|blocked)\b[*_`]*[ \t]*(?:\r?\n|$)/i;
+const RESULT_LINE = /^[\s*_`>#]*RESULT\s*:\s*(done|blocked)\b[*_`.]*\s*$/i;
+
+function capped(body: string): string {
+  return body.length > MAX_COMMENT_LENGTH ? `${body.slice(0, MAX_COMMENT_LENGTH - 1)}…` : body;
+}
 
 /**
- * The agent's final message as a task comment. Without the RESULT line the
- * message still counts as the report (done); an empty one is no report at all.
+ * The agent's final message as a task comment. The `RESULT:` line is asked for
+ * first, but models sometimes put it last, so either end counts. Without one the
+ * message is still the report, but the run counts as blocked: a task is only
+ * done when the agent says so. An empty message is no report at all.
  */
 export function parseRunReport(text: string | null | undefined): RunReport | null {
   const trimmed = text?.trim();
   if (!trimmed) return null;
-  const match = RESULT_LINE.exec(trimmed);
-  const outcome = (match?.[1]?.toLowerCase() as RunReport["outcome"] | undefined) ?? "done";
-  const body = (match ? trimmed.slice(match[0].length).trim() : trimmed) || trimmed;
-  return {
-    outcome,
-    body: body.length > MAX_COMMENT_LENGTH ? `${body.slice(0, MAX_COMMENT_LENGTH - 1)}…` : body,
-  };
+  const lines = trimmed.split(/\r?\n/);
+  for (const index of lines.length > 1 ? [0, lines.length - 1] : [0]) {
+    const match = RESULT_LINE.exec(lines[index]);
+    if (!match) continue;
+    const rest = lines.filter((_, i) => i !== index).join("\n").trim();
+    return {
+      outcome: match[1].toLowerCase() as RunReport["outcome"],
+      body: capped(rest || trimmed),
+      missingResult: false,
+    };
+  }
+  return { outcome: "blocked", body: capped(trimmed), missingResult: true };
 }

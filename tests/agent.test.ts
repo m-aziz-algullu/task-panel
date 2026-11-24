@@ -161,16 +161,35 @@ describe("claudeAuthFrom", () => {
 
 describe("parseRunReport", () => {
   it("reads the outcome line and keeps the rest as the report", () => {
-    expect(parseRunReport("RESULT: done\n\nFound 3 offers.")).toEqual({ outcome: "done", body: "Found 3 offers." });
-    expect(parseRunReport("**RESULT: blocked**\nNeed the login.")).toEqual({ outcome: "blocked", body: "Need the login." });
-    expect(parseRunReport("  `RESULT: Done`  \nok")).toEqual({ outcome: "done", body: "ok" });
+    expect(parseRunReport("RESULT: done\n\nFound 3 offers.")).toEqual({
+      outcome: "done",
+      body: "Found 3 offers.",
+      missingResult: false,
+    });
+    expect(parseRunReport("**RESULT: blocked**\nNeed the login.")).toMatchObject({
+      outcome: "blocked",
+      body: "Need the login.",
+    });
+    expect(parseRunReport("  `RESULT: Done`  \nok")).toMatchObject({ outcome: "done", body: "ok" });
   });
 
-  it("treats a message without the line as a finished report", () => {
-    expect(parseRunReport("Here is what I found.")).toEqual({ outcome: "done", body: "Here is what I found." });
-    expect(parseRunReport("The RESULT: done line is not at the start")).toEqual({
+  it("also reads the outcome line when the model puts it last", () => {
+    expect(parseRunReport("Found 3 offers.\n\nRESULT: done.")).toEqual({
       outcome: "done",
-      body: "The RESULT: done line is not at the start",
+      body: "Found 3 offers.",
+      missingResult: false,
+    });
+  });
+
+  it("counts a message without the line as blocked, keeping it as the report", () => {
+    expect(parseRunReport("Here is what I found.")).toEqual({
+      outcome: "blocked",
+      body: "Here is what I found.",
+      missingResult: true,
+    });
+    expect(parseRunReport("The RESULT: done line is not on its own\nmore")).toMatchObject({
+      outcome: "blocked",
+      missingResult: true,
     });
   });
 
