@@ -28,6 +28,7 @@ vi.mock("@/lib/agent/worker", () => ({ pokeAgentWorker: vi.fn(), abortSession: v
 
 import { refresh } from "next/cache";
 import * as actions from "@/app/actions";
+import { abortSession } from "@/lib/agent/worker";
 import { saveAgentSettings } from "@/lib/agent/settings";
 import { parseAgentSettings } from "@/lib/agent/settings-shape";
 import { getClock } from "@/lib/data";
@@ -193,6 +194,25 @@ describe("agent", () => {
     expect(row.status).toBe("aborted");
     const comments = await db.select().from(taskComments).where(eq(taskComments.taskId, task.id));
     expect(comments.map((comment) => comment.author)).toEqual(["system"]);
+  });
+
+  it("stops the OpenClaw session of a running run when its task is deleted", async () => {
+    state.agent = true;
+    const task = await ok(actions.createTask(taskInput()));
+    const run = await ok(actions.startAgentRun(task.id, runInput));
+    await db.update(agentRuns).set({ status: "running", openclawRunId: "oc-1" }).where(eq(agentRuns.id, run.id));
+
+    await ok(actions.deleteTask(task.id));
+    expect(await db.select().from(agentRuns)).toHaveLength(0);
+    expect(abortSession).toHaveBeenCalledWith(expect.objectContaining({ id: run.id, openclawRunId: "oc-1" }));
+  });
+
+  it("has no session to stop when a deleted task's run was only queued", async () => {
+    state.agent = true;
+    const task = await ok(actions.createTask(taskInput()));
+    await ok(actions.startAgentRun(task.id, runInput));
+    await ok(actions.deleteTask(task.id));
+    expect(abortSession).not.toHaveBeenCalled();
   });
 
   it("continues the agent's conversation when the user comments after a run", async () => {

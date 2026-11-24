@@ -18,7 +18,7 @@ import {
   type Status,
 } from "../types";
 
-const { agentRuns, taskComments } = schema;
+const { agentRuns, taskComments, tasks } = schema;
 
 export type RunRow = typeof agentRuns.$inferSelect;
 
@@ -167,6 +167,32 @@ export async function updateRun(
   values: Partial<Pick<RunRow, "openclawRunId" | "tokensUsed" | "usageBaseline" | "sessionKey" | "continuesRunId">>,
 ): Promise<void> {
   await db.update(agentRuns).set(values).where(eq(agentRuns.id, runId));
+}
+
+/**
+ * Records that the run's OpenClaw turn has started and moves the task to In
+ * Progress, but only while the run is still running: the user may have stopped
+ * it, or deleted its task, while the Gateway was starting the turn. False means
+ * nobody wants the turn any more and the caller has to abort it.
+ */
+export async function markRunStarted(
+  db: Db,
+  run: Pick<RunRow, "id" | "taskId">,
+  openclawRunId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    // Locks the run row, so a stop (finalizeRun) waits for this transaction and
+    // then sees the OpenClaw run id it has to abort.
+    const marked = await tx
+      .update(agentRuns)
+      .set({ openclawRunId })
+      .where(and(eq(agentRuns.id, run.id), eq(agentRuns.status, "running")))
+      .returning({ id: agentRuns.id });
+    if (marked.length === 0) return false;
+    const [task] = await tx.select({ status: tasks.status }).from(tasks).where(eq(tasks.id, run.taskId));
+    if (task && task.status !== "in_progress" && task.status !== "done") await moveTaskTo(tx, run.taskId, "in_progress");
+    return true;
+  });
 }
 
 /** How many comments the user wrote on the task after `since`. */

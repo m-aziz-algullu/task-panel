@@ -246,7 +246,11 @@ export async function deleteTask(rawId: number): Promise<ActionResult> {
   await requireSession();
   try {
     const db = await getDb();
-    await db.delete(tasks).where(eq(tasks.id, id.parse(rawId)));
+    const taskId = id.parse(rawId);
+    const run = await activeRun(db, taskId);
+    // The run row goes with the task; its OpenClaw session has to be stopped too.
+    await db.delete(tasks).where(eq(tasks.id, taskId));
+    if (run?.status === "running") await abortSession(run);
     refresh();
     return { ok: true, data: undefined };
   } catch (error) {

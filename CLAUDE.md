@@ -64,7 +64,7 @@ The PR template (`.github/pull_request_template.md`) repeats this list as a chec
 
 **Agent (OpenClaw).** `src/lib/openclaw/` connects to the Gateway (token from env or `.data/secrets` in dev). `src/lib/agent/`:
 - `runs.ts`: `agent_runs` rows act as a DB-backed queue (enqueue / claim / finalize).
-- `worker.ts`: an in-process polling loop that claims queued runs, sends prompts (`prompt.ts`), waits on the Gateway, enforces token and time limits, posts results as task comments, and moves the task's status.
+- `worker.ts`: an in-process polling loop that claims queued runs, sends prompts (`prompt.ts`), waits on the Gateway, enforces token and time limits, posts results as task comments, and moves the task's status. A run can be stopped or its task deleted at any moment, so every write after a Gateway call is conditional on the run still being `running` (`markRunStarted`, `finalizeRun`), and whoever finds the run gone aborts the OpenClaw turn. A report without a `RESULT:` line counts as `blocked`. `tests/db/worker.test.ts` drives the worker against a fake Gateway (`gatewayRequest` mocked, `worker.idle()` waits for it to settle).
 - `auto.ts`: adding the agent tag to a task enqueues a run.
 - `continue.ts` / `continuation.ts`: a user comment on an agent task continues the same OpenClaw session unless it has grown too big.
 - `settings.ts` / `settings-shape.ts`: agent settings, stored as JSON under one key in `app_settings`; edited on the `/agent` page.
