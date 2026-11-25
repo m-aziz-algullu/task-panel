@@ -10,6 +10,7 @@ import { STATUSES, STATUS_META, STORY_POINTS, type Clock, type Status, type Tag,
 import { plainTextToDocument } from "@/lib/rich-text/document";
 import { ColorPicker, randomPresetColor } from "./color-picker";
 import { Modal } from "./modal";
+import { TASK_DIALOG_DISMISSAL } from "./modal-dismiss";
 import { RichTextEditor } from "./rich-text/editor";
 import { TagPill } from "./tag-pill";
 import { AgentRunPanel } from "./agent-run-panel";
@@ -164,7 +165,7 @@ export function TaskDialog({ task, defaultStatus = "backlog", tags, clock, agent
   };
 
   return (
-    <Modal title={task ? t("task.heading", { id: task.id }) : t("task.new")} onClose={onClose} size="lg">
+    <Modal title={task ? t("task.heading", { id: task.id }) : t("task.new")} onClose={onClose} size="lg" dismissal={TASK_DIALOG_DISMISSAL}>
       <form
         onSubmit={(event) => {
           event.preventDefault();

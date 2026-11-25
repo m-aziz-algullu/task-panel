@@ -31,7 +31,7 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 - **Yedekleme ve geri yükleme:** *Ayarlar* sayfası oluşturduğun her şeyi (etiketleri ve yorumlarıyla tasklar, etiketler, rutinler ve ajan ayarları) tek bir JSON dosyası olarak indirir, paneli de böyle bir dosyadan tek adımda geri yükler. Geri yükleme panoyu baştan kurar, her `#id` aynı kalır; aktif bir ajan çalışması varken yapılmaz. Hesabın ve ajan çalışma geçmişi dahil değildir.
 - **Türkçe ve İngilizce** arayüz. Tarayıcı diline göre seçilir, header'dan değiştirilebilir.
 - Açık ve koyu tema.
-- Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat.
+- Kısayollar: `N` yeni task, `/` arama, `Ctrl+Enter` kaydet, `Esc` kapat. Task penceresi yalnızca × düğmesiyle ya da `Esc` ile kapanır; yanına yanlışlıkla tıklamak yazdıklarınızı kaybettirmez.
 - **Tek yönetici hesabı, korumalı kurulum** (aşağıda).
 
 ## Yedekleme ve geri yükleme
