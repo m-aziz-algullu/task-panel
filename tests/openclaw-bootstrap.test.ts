@@ -2,7 +2,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { AGENT_CONTEXT_TOKENS, appEnv, ensureSecrets, gatewayEnv, managedConfig } from "../docker/openclaw-bootstrap.mjs";
+import {
+  AGENT_CONTEXT_TOKENS,
+  BOOTSTRAP_MAX_CHARS,
+  BOOTSTRAP_TOTAL_MAX_CHARS,
+  MANAGED_CONFIG_PATHS,
+  appEnv,
+  ensureSecrets,
+  gatewayEnv,
+  managedConfig,
+} from "../docker/openclaw-bootstrap.mjs";
 
 const dirs: string[] = [];
 const tempDir = () => {
@@ -53,6 +62,29 @@ describe("managedConfig", () => {
     const models = config["models.providers.anthropic.models"] as { id: string; contextTokens: number }[];
     expect(models.map((model) => model.id)).toContain("claude-sonnet-5-5");
     expect(models.every((model) => model.contextTokens === AGENT_CONTEXT_TOKENS)).toBe(true);
+  });
+
+  it("turns off the model calls OpenClaw makes on its own", () => {
+    const config = Object.fromEntries(managedConfig().map((entry) => [entry.path, entry.value]));
+    expect(config["agents.defaults.heartbeat.every"]).toBe("0m");
+    expect(config["plugins.entries.memory-core.config.dreaming.enabled"]).toBe(false);
+    expect(config["agents.defaults.utilityModel"]).toBe("");
+  });
+
+  it("caps the workspace files that go into every system prompt", () => {
+    const config = Object.fromEntries(managedConfig().map((entry) => [entry.path, entry.value]));
+    expect(config["agents.defaults.bootstrapMaxChars"]).toBe(BOOTSTRAP_MAX_CHARS);
+    expect(config["agents.defaults.bootstrapTotalMaxChars"]).toBe(BOOTSTRAP_TOTAL_MAX_CHARS);
+    // Below OpenClaw's defaults (20k a file, 60k in all), or the cap does nothing.
+    expect(BOOTSTRAP_MAX_CHARS).toBeLessThan(20_000);
+    expect(BOOTSTRAP_TOTAL_MAX_CHARS).toBeLessThan(60_000);
+    expect(BOOTSTRAP_MAX_CHARS).toBeLessThanOrEqual(BOOTSTRAP_TOTAL_MAX_CHARS);
+  });
+
+  it("shows the new keys as managed on the settings page", () => {
+    expect(MANAGED_CONFIG_PATHS).toEqual(
+      expect.arrayContaining(["agents.defaults.heartbeat.every", "agents.defaults.utilityModel"]),
+    );
   });
 
   it("lets the browser start inside the container", () => {
