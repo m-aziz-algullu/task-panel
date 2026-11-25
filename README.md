@@ -40,6 +40,12 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 
 ![Settings page with backup and restore](docs/screenshots/settings-light.png)
 
+While the backup downloads, the button shows a spinner: first *Preparing backup…* while the server builds the file, then *Downloading… 42%* as it arrives, and a short *Downloaded* with a check mark once the file is saved. If the download fails or the connection drops, the reason appears under the buttons and the button is ready to try again.
+
+| Preparing | Done (dark mode) |
+| --- | --- |
+| ![Backup button while the backup is being prepared](docs/screenshots/backup-download-light.png) | ![Backup button after the download finished, dark mode](docs/screenshots/backup-download-dark.png) |
+
 ## Notifications
 
 *Settings* → *Notifications* → *Turn on for this device* asks the browser for permission and subscribes it. From then on, when an agent run ends you get a notification on every device you turned on: *Agent finished: …* or *Agent needs you: …*, with the start of the agent's report or the reason it stopped. Clicking it opens the task on the board. A run you stop yourself doesn't notify. *Send a test* shows right away whether the push service accepts the notification, and the device list shows the last delivery or error per device.
@@ -222,6 +228,7 @@ src/lib/due-date.ts            When a card's due-date light turns on
 src/lib/routine-schedule*.ts   Routine schedules (cron) and the loop that creates their tasks
 src/lib/rich-text/             Description schema, checked on every save
 src/lib/backup*.ts             Backup file shape and the all-or-nothing restore
+src/lib/download.ts            File download with progress (backup button)
 src/lib/agent/                 Agent run queue and worker, prompts, settings
 src/lib/push/                  Web Push: VAPID keys, subscriptions, outbox and delivery loop, notification text
 src/lib/openclaw/              Connection to the OpenClaw Gateway

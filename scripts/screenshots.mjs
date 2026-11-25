@@ -387,6 +387,31 @@ async function main() {
         .getByRole("region", { name: "Notifications" })
         .screenshot({ path: path.join(outDir, "notifications-light.png") });
     });
+    // The backup button while the server builds the file (held here so the
+    // spinner stays up), then right after the file was saved.
+    shot("backup-download-light", async () => {
+      const p = await open("light", "/en/settings");
+      let release;
+      const held = new Promise((resolve) => (release = resolve));
+      await p.route("**/api/backup", async (route) => {
+        await held;
+        await route.continue();
+      });
+      const region = p.getByRole("region", { name: "Backup" });
+      await region.getByRole("button", { name: "Download backup" }).click();
+      await region.locator('[data-phase="preparing"]').waitFor();
+      await p.waitForTimeout(300);
+      await region.screenshot({ path: path.join(outDir, "backup-download-light.png") });
+      release();
+      await region.locator('[data-phase="done"]').waitFor();
+    });
+    shot("backup-download-dark", async () => {
+      const p = await open("dark", "/en/settings");
+      const region = p.getByRole("region", { name: "Backup" });
+      await region.getByRole("button", { name: "Download backup" }).click();
+      await region.locator('[data-phase="done"]').waitFor();
+      await region.screenshot({ path: path.join(outDir, "backup-download-dark.png") });
+    });
 
     for (const [name, run] of shots) {
       await run();

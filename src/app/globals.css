@@ -86,6 +86,16 @@ body {
   }
 }
 
+/* A bar that sweeps across while the size of a download is unknown. */
+@keyframes download-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
 dialog::backdrop {
   background: rgb(0 0 0 / 0.45);
 }
