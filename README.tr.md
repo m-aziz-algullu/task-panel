@@ -40,6 +40,12 @@ Kendi sunucuna kurduğun, tek kullanıcılı bir kanban panosu. Kendi renklerinl
 
 ![Yedekleme ve geri yükleme ile Ayarlar sayfası](docs/screenshots/settings-light.png)
 
+Yedek inerken buton dönen bir çark gösterir: sunucu dosyayı hazırlarken *Yedek hazırlanıyor…*, dosya gelirken *İndiriliyor… %42*, dosya kaydedilince de kısa bir süre onay işaretiyle *İndirildi*. İndirme başarısız olursa ya da bağlantı koparsa sebebi butonların altında görünür ve buton tekrar denemeye hazır olur.
+
+| Hazırlanıyor | Tamamlandı (koyu tema) |
+| --- | --- |
+| ![Yedek hazırlanırken yedek butonu](docs/screenshots/backup-download-light.png) | ![İndirme bittikten sonra yedek butonu, koyu tema](docs/screenshots/backup-download-dark.png) |
+
 ## Bildirimler
 
 *Ayarlar* → *Bildirimler* → *Bu cihazda aç* tarayıcıdan izin ister ve onu abone eder. Bundan sonra bir ajan çalışması bittiğinde açtığın her cihaza bildirim gelir: *Ajan bitirdi: …* ya da *Ajan seni bekliyor: …*, altında ajanın raporunun başı ya da durma sebebi. Tıklayınca task panoda açılır. Kendi durdurduğun bir çalışma bildirim göndermez. *Deneme gönder* bildirim servisinin bildirimi kabul edip etmediğini hemen gösterir; cihaz listesi her cihazın son teslimini ya da hatasını gösterir.
@@ -222,6 +228,7 @@ src/lib/due-date.ts            Karttaki son tarih ışığının ne zaman yanaca
 src/lib/routine-schedule*.ts   Rutin zamanlamaları (cron) ve task'larını oluşturan döngü
 src/lib/rich-text/             Açıklama şeması, her kayıtta kontrol edilir
 src/lib/backup*.ts             Yedek dosyasının yapısı ve hep-ya-hiç geri yükleme
+src/lib/download.ts            İlerleme gösteren dosya indirme (yedek butonu)
 src/lib/agent/                 Ajan çalışma kuyruğu ve worker'ı, prompt'lar, ayarlar
 src/lib/push/                  Web Push: VAPID anahtarları, abonelikler, outbox ve gönderim döngüsü, bildirim metinleri
 src/lib/openclaw/              OpenClaw Gateway bağlantısı

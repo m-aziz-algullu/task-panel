@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import type { MessageKey } from "@/i18n/translate";
 import { BackupError, exportBackup, restoreBackup } from "@/lib/backup";
 import { MAX_BACKUP_BYTES, backupFileName, parseBackup } from "@/lib/backup-shape";
+import { DOWNLOAD_SIZE_HEADER } from "@/lib/download";
 import { getClock } from "@/lib/data";
 import { getDb } from "@/lib/db";
 import { readCapped, sameOrigin } from "@/lib/http";
@@ -22,10 +23,13 @@ function failure(error: MessageKey, status: number) {
 export async function GET() {
   if (!(await getCurrentUser())) return failure("errors.unauthorized", 401);
   const backup = await exportBackup(await getDb());
-  return new Response(JSON.stringify(backup, null, 2), {
+  const body = new TextEncoder().encode(JSON.stringify(backup, null, 2));
+  return new Response(body, {
     headers: {
       ...noStore,
       "Content-Type": "application/json; charset=utf-8",
+      // The settings page shows download progress from this (see lib/download.ts).
+      [DOWNLOAD_SIZE_HEADER]: String(body.byteLength),
       "Content-Disposition": `attachment; filename="${backupFileName(getClock().today)}"`,
     },
   });
