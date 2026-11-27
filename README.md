@@ -31,7 +31,7 @@ A self-hosted, single-user kanban board for your own tasks. Tags with your own c
 - **Backup and restore:** *Settings* downloads everything you made (tasks with their tags and comments, tags, routines and agent settings) as one JSON file, and restores the panel from such a file in one step. A restore replaces the board, keeps every `#id`, and waits until no agent run is active. Your account and agent run history aren't included.
 - **English and Turkish** UI, picked from the browser language and switchable in the header.
 - Light and dark mode.
-- Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close.
+- Keyboard shortcuts: `N` new task, `/` search, `Ctrl+Enter` save, `Esc` close. The task dialog closes only with its × button or `Esc`, so a stray click beside it never loses what you typed.
 - **Single admin account, protected setup** (see below).
 
 ## Backup and restore

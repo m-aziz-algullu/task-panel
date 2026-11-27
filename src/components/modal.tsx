@@ -3,16 +3,19 @@
 import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useI18n } from "@/i18n/client";
+import { closesOnPress, DEFAULT_DISMISSAL, type ModalDismissal } from "./modal-dismiss";
 
 type ModalProps = {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   size?: "md" | "lg";
+  /** Ways besides the close button and Escape to close it; a click on the backdrop by default. */
+  dismissal?: ModalDismissal;
 };
 
 /** A native modal <dialog>, shown as soon as it mounts. Render it conditionally. */
-export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
+export function Modal({ title, onClose, children, size = "md", dismissal = DEFAULT_DISMISSAL }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const { t } = useI18n();
 
@@ -30,8 +33,7 @@ export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
         onClose();
       }}
       onMouseDown={(event) => {
-        // A press on the dialog element itself (not its content) is on the backdrop.
-        if (event.target === ref.current) onClose();
+        if (closesOnPress(event.target, ref.current, dismissal)) onClose();
       }}
       className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-surface p-0 text-fg shadow-2xl ${
         size === "lg" ? "max-w-5xl" : "max-w-lg"
