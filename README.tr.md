@@ -179,6 +179,8 @@ openclaw models set anthropic/claude-sonnet-5-5    # ajan Sonnet 5.5 ile çalı�
 
 Herkes kendi hesabıyla giriş yapar ve giriş her zaman Anthropic'in akışında tamamlanır; Task Panel Claude kimlik bilgilerini hiç görmez ve saklamaz. Abonelik limitleri olağan bireysel kullanıma göre belirlenir; Anthropic'in [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) sayfasına bak. Yoğun ve sürekli kullanım için bunun yerine `ANTHROPIC_API_KEY` ver.
 
+**Giriş hâlâ geçerli mi?** OpenClaw'ın ayarları sadece bir girişin kurulduğunu söyler; arkasındaki Claude Code OAuth oturumunun hâlâ yenilenip yenilenemediğini bilemez (uzun bir aradan, şifre değişikliğinden ya da çıkış yaptıktan sonra yenilenemez). Bu yüzden **Ajan** sayfası bunu çok kısa, gerçek bir mesajla kanıtlar (**Oturumu kontrol et**; son 12 saatte girişi hiçbir şey kanıtlamadıysa sayfayı açınca kendiliğinden de çalışır) ve en son ne zaman çalıştığını gösterir. Kimlik doğrulayamayan bir task çalıştırması girişi hemen **süresi doldu** olarak işaretler, bunu taskın yorumunda söyler ve sayfa ne yapılacağını gösterir: ajan kabuğunu açıp `claude auth login`'i yeniden çalıştır, sonra **Oturumu kontrol et**'e bas. Cevap alan ilk çalıştırma ya da kontrol bu durumu kaldırır.
+
 ### Ortam değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
@@ -212,7 +214,7 @@ src/app/api/backup/            Yedek indirme ve geri yükleme
 src/app/api/push/              Bildirim aboneliği, VAPID açık anahtarı, deneme bildirimi
 src/app/manifest.ts            Web uygulaması manifest'i (Ana Ekran'a ekleme; iOS'ta bildirim için gerekli)
 public/sw.js                   Service worker: bildirimleri gösterir, tıklanınca taskı açar
-src/app/api/agent/             Claude giriş durumu, çalışma seçenekleri, Control UI oturumu
+src/app/api/agent/             Claude giriş durumu ve kontrolü, çalışma seçenekleri, Control UI oturumu
 docker/                        Container supervisor'ı, gömülü OpenClaw kurulumu, Control UI proxy'si
 scripts/agent-dev.mjs          Geliştirmede OpenClaw Gateway'i
 scripts/screenshots.mjs        README ekran görüntülerini demo veriden yeniden alır

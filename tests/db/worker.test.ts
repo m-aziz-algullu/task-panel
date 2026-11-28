@@ -38,6 +38,7 @@ vi.mock("@/lib/agent/reply", async (importOriginal) => ({
   turnReply: vi.fn(async () => gateway.reply),
 }));
 
+import { readClaudeHealth } from "@/lib/agent/claude-health";
 import { enqueueRun, finalizeRun, runById } from "@/lib/agent/runs";
 import { AgentWorker } from "@/lib/agent/worker";
 import { schema, type Db } from "@/lib/db";
@@ -211,6 +212,60 @@ describe("agent worker", () => {
       expect(row!.sessionKey).not.toBe(previous.sessionKey);
       // The new session sees the whole task, the user's comment included.
       expect(String(called("sessions.create")[0].params.message)).toContain("Try the other shop too.");
+    });
+  });
+
+  describe("Claude sign-in", () => {
+    const expired = "Failed to authenticate: OAuth session expired and could not be refreshed";
+
+    async function systemComment(taskId: number) {
+      const [comment] = await db.select().from(taskComments).where(eq(taskComments.taskId, taskId));
+      return JSON.parse(comment.body) as { key: string; vars: { error: string } };
+    }
+
+    it("marks the sign-in expired and says to sign in again when Claude Code can't authenticate", async () => {
+      const taskId = await task();
+      const run = (await enqueueRun(db, taskId, input, "manual"))!;
+      gateway.handlers["agent.wait"] = () => ({ status: "error", error: { message: expired } });
+      await work();
+
+      expect(await runById(db, run.id)).toMatchObject({ status: "failed", error: expired });
+      expect(await systemComment(taskId)).toEqual({ key: "agentRun.systemClaudeSignIn", vars: { error: expired } });
+      expect(await readClaudeHealth(db)).toMatchObject({ ok: false, source: "run", error: expired });
+    });
+
+    it("treats OpenClaw's failed-turn notice as a failed run, not as the agent's report", async () => {
+      const taskId = await task();
+      const run = (await enqueueRun(db, taskId, input, "manual"))!;
+      gateway.reply = `Your request couldn't be completed: ${expired}`;
+      await work();
+
+      expect(await runById(db, run.id)).toMatchObject({ status: "failed" });
+      expect((await systemComment(taskId)).key).toBe("agentRun.systemClaudeSignIn");
+      expect(await readClaudeHealth(db)).toMatchObject({ ok: false, source: "run" });
+    });
+
+    it("counts an answered run as proof that the sign-in works again", async () => {
+      const taskId = await task();
+      gateway.handlers["agent.wait"] = () => ({ status: "error", error: { message: expired } });
+      const failed = (await enqueueRun(db, taskId, input, "manual"))!;
+      await work();
+      expect((await runById(db, failed.id))?.status).toBe("failed");
+
+      gateway.handlers["agent.wait"] = () => ({ status: "ok" });
+      await enqueueRun(db, taskId, input, "manual");
+      await work();
+      expect(await readClaudeHealth(db)).toMatchObject({ ok: true, source: "run", error: null });
+    });
+
+    it("leaves the sign-in state alone for other errors", async () => {
+      const taskId = await task();
+      await enqueueRun(db, taskId, input, "manual");
+      gateway.handlers["agent.wait"] = () => ({ status: "error", error: { message: "rate limit reached" } });
+      await work();
+
+      expect((await systemComment(taskId)).key).toBe("agentRun.systemFailed");
+      expect(await readClaudeHealth(db)).toBeNull();
     });
   });
 });
