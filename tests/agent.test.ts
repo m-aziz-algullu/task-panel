@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { SESSION_KEY_PREFIX as GATEWAY_PREFIX } from "../docker/openclaw-bootstrap.mjs";
-import { claudeAuthFrom, claudeCliModels } from "@/lib/agent/claude-auth";
+import {
+  CLAUDE_VERIFY_MAX_AGE_MS,
+  claudeAuthFrom,
+  claudeCliModels,
+  isClaudeAuthError,
+  needsVerification,
+  type ClaudeHealth,
+} from "@/lib/agent/claude-auth";
 import {
   commentContinuation,
   continuesAfterRun,
@@ -133,7 +140,12 @@ describe("claudeAuthFrom", () => {
         },
       ],
     };
-    expect(claudeAuthFrom(status)).toEqual({ state: "connected", method: "subscription", email: "me@example.com" });
+    expect(claudeAuthFrom(status)).toEqual({
+      state: "connected",
+      method: "subscription",
+      email: "me@example.com",
+      verifiedAt: null,
+    });
   });
 
   it("recognises a subscription connected through the Claude Code CLI runtime", () => {
@@ -144,18 +156,89 @@ describe("claudeAuthFrom", () => {
       models: { "anthropic/claude-opus-5-5": { agentRuntime: { id: "claude-cli" } }, "openai/gpt-6": {} },
     };
     expect(claudeCliModels(defaults)).toEqual(["anthropic/claude-opus-5-5"]);
-    expect(claudeAuthFrom({ providers: [] }, defaults)).toEqual({ state: "connected", method: "subscription", email: null });
-    expect(claudeAuthFrom(null, defaults)).toEqual({ state: "connected", method: "subscription", email: null });
+    const viaCli = { state: "connected", method: "subscription", email: null, verifiedAt: null };
+    expect(claudeAuthFrom({ providers: [] }, defaults)).toEqual(viaCli);
+    expect(claudeAuthFrom(null, defaults)).toEqual(viaCli);
     expect(claudeAuthFrom({ providers: [] }, { models: { "openai/gpt-6": {} } })).toEqual({ state: "missing" });
   });
 
   it("tells an API key and an expired sign-in apart", () => {
     expect(
       claudeAuthFrom({ providers: [{ provider: "anthropic", status: "static", profiles: [{ type: "api_key" }] }] }),
-    ).toEqual({ state: "connected", method: "api_key", email: null });
+    ).toEqual({ state: "connected", method: "api_key", email: null, verifiedAt: null });
     expect(
       claudeAuthFrom({ providers: [{ provider: "anthropic", status: "expired", profiles: [{ type: "oauth" }] }] }),
-    ).toEqual({ state: "expired" });
+    ).toEqual({ state: "expired", source: "openclaw", at: null, error: null });
+  });
+
+  // The bug this guards against: a CLI sign-in looks connected in OpenClaw's config
+  // forever, even after its OAuth session can no longer be refreshed.
+  const cliDefaults = { models: { "anthropic/claude-sonnet-5-5": { agentRuntime: { id: "claude-cli" } } } };
+  const expiredError = "Failed to authenticate: OAuth session expired and could not be refreshed";
+
+  it("shows a CLI sign-in as expired once a real turn failed to authenticate", () => {
+    const health: ClaudeHealth = { ok: false, at: "2026-11-28T10:00:00.000Z", source: "run", error: expiredError };
+    expect(claudeAuthFrom({ providers: [] }, cliDefaults, health)).toEqual({
+      state: "expired",
+      source: "run",
+      at: "2026-11-28T10:00:00.000Z",
+      error: expiredError,
+    });
+  });
+
+  it("says when a real turn last proved the sign-in", () => {
+    const health: ClaudeHealth = { ok: true, at: "2026-11-28T10:00:00.000Z", source: "check", error: null };
+    expect(claudeAuthFrom({ providers: [] }, cliDefaults, health)).toEqual({
+      state: "connected",
+      method: "subscription",
+      email: null,
+      verifiedAt: "2026-11-28T10:00:00.000Z",
+    });
+  });
+
+  it("doesn't let an old turn override a missing or unknown sign-in", () => {
+    const health: ClaudeHealth = { ok: true, at: "2026-11-28T10:00:00.000Z", source: "run", error: null };
+    expect(claudeAuthFrom({ providers: [] }, null, health)).toEqual({ state: "missing" });
+    expect(claudeAuthFrom(null, null, { ...health, ok: false })).toEqual({ state: "unknown" });
+  });
+});
+
+describe("isClaudeAuthError", () => {
+  it("recognises Claude Code's sign-in failures", () => {
+    expect(isClaudeAuthError("Failed to authenticate: OAuth session expired and could not be refreshed")).toBe(true);
+    expect(
+      isClaudeAuthError("Your request couldn't be completed: Failed to authenticate: OAuth session expired and could not be refreshed"),
+    ).toBe(true);
+    expect(isClaudeAuthError("Not logged in · Please run /login")).toBe(true);
+    expect(isClaudeAuthError('401 {"type":"error","error":{"type":"authentication_error"}}')).toBe(true);
+  });
+
+  it("leaves other errors alone", () => {
+    expect(isClaudeAuthError("rate limit reached")).toBe(false);
+    expect(isClaudeAuthError("the run did not start")).toBe(false);
+    expect(isClaudeAuthError(null)).toBe(false);
+  });
+});
+
+describe("needsVerification", () => {
+  const now = Date.parse("2026-11-28T12:00:00.000Z");
+  const connected = { state: "connected", method: "subscription", email: null } as const;
+
+  it("checks a sign-in that nothing has proven lately", () => {
+    expect(needsVerification({ ...connected, verifiedAt: null }, now)).toBe(true);
+    expect(needsVerification({ ...connected, verifiedAt: new Date(now - CLAUDE_VERIFY_MAX_AGE_MS - 1).toISOString() }, now)).toBe(
+      true,
+    );
+    expect(needsVerification({ ...connected, verifiedAt: new Date(now - 60_000).toISOString() }, now)).toBe(false);
+  });
+
+  it("re-checks an expired sign-in, since the user may have signed in again", () => {
+    const expired = { state: "expired", source: "run", error: null } as const;
+    expect(needsVerification({ ...expired, at: new Date(now - 10 * 60_000).toISOString() }, now)).toBe(true);
+    // Not right after a check just failed.
+    expect(needsVerification({ ...expired, at: new Date(now - 5_000).toISOString() }, now)).toBe(false);
+    expect(needsVerification({ state: "expired", source: "openclaw", at: null, error: null }, now)).toBe(false);
+    expect(needsVerification({ state: "missing" }, now)).toBe(false);
   });
 });
 

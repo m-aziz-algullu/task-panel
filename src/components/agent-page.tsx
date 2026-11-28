@@ -1,10 +1,10 @@
 "use client";
 
 import { Bot, Check, CircleAlert, CircleDashed, Copy, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useI18n } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
-import type { ClaudeAuth, ClaudeStatus } from "@/lib/agent/claude-auth";
+import { needsVerification, type ClaudeAuth, type ClaudeStatus } from "@/lib/agent/claude-auth";
 
 const TERMS_URL = "https://code.claude.com/docs/en/legal-and-compliance";
 /** The model the agent runs on: Sonnet 5.5, through the Claude Code CLI. */
@@ -25,10 +25,47 @@ export function claudeAuthLabel(auth: ClaudeAuth): MessageKey {
 
 const AUTH_CLASS: Record<ClaudeAuth["state"], string> = {
   connected: "bg-green-500/15 text-green-700 dark:text-green-400",
-  expired: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  expired: "bg-red-500/15 text-red-700 dark:text-red-400",
   missing: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   unknown: "bg-surface-2 text-muted",
 };
+
+const RELATIVE_STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["day", 86_400_000],
+  ["hour", 3_600_000],
+  ["minute", 60_000],
+];
+
+const noSubscribe = () => () => {};
+/** The current minute in the browser; null while rendering on the server. */
+const currentMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
+
+/** "3 hours ago", worked out in the browser (the server only knows the date). */
+function Ago({ at }: { at: string }) {
+  const { intlLocale } = useI18n();
+  const now = useSyncExternalStore(noSubscribe, currentMinute, () => null);
+  if (now == null) return <time dateTime={at}>{at.slice(0, 10)}</time>;
+  const diff = new Date(at).getTime() - now;
+  const format = new Intl.RelativeTimeFormat(intlLocale, { numeric: "auto" });
+  const [unit, ms] = RELATIVE_STEPS.find(([, size]) => Math.abs(diff) >= size) ?? ["minute", 60_000];
+  return (
+    <time dateTime={at} title={new Date(at).toLocaleString(intlLocale)}>
+      {format.format(Math.round(diff / ms), unit)}
+    </time>
+  );
+}
+
+/** Splits a message around its {when} placeholder so a live <Ago> can sit in it. */
+function WithWhen({ text, at }: { text: string; at: string }) {
+  const [before, after = ""] = text.split("{when}");
+  return (
+    <>
+      {before}
+      <Ago at={at} />
+      {after}
+    </>
+  );
+}
 
 function Command({ value }: { value: string }) {
   const { t } = useI18n();
@@ -104,16 +141,31 @@ export function AgentPage({
 }) {
   const { t } = useI18n();
   const [status, setStatus] = useState(initial);
-  const [refreshing, setRefreshing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
-  const refresh = () => {
-    setRefreshing(true);
-    fetch("/api/agent/claude?refresh=1", { cache: "no-store" })
+  // A real check: OpenClaw re-reads the credentials, then Claude gets one tiny turn.
+  const check = useCallback(() => {
+    setChecking(true);
+    setCheckError(null);
+    fetch("/api/agent/claude/check", { method: "POST", cache: "no-store" })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
-      .then((next: ClaudeStatus) => setStatus(next))
-      .catch(() => {})
-      .finally(() => setRefreshing(false));
-  };
+      .then((next: { status: ClaudeStatus; error: string | null }) => {
+        setStatus(next.status);
+        setCheckError(next.error);
+      })
+      .catch((error: Error) => setCheckError(error.message))
+      .finally(() => setChecking(false));
+  }, []);
+
+  // The config alone can't tell a dead OAuth session from a live one, so a sign-in
+  // nothing has proven lately is checked as soon as the page opens.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (autoChecked.current || !needsVerification(initial.auth, Date.now())) return;
+    autoChecked.current = true;
+    check();
+  }, [initial.auth, check]);
 
   const { gateway, auth, cliFound } = status;
   const connected = auth.state === "connected";
@@ -186,13 +238,45 @@ export function AgentPage({
                 <span className="text-xs text-muted">
                   {t(auth.method === "subscription" ? "agentPage.methodSubscription" : "agentPage.methodApiKey")}
                   {auth.email && ` · ${auth.email}`}
+                  {" · "}
+                  {auth.verifiedAt ? (
+                    <WithWhen text={t("agentPage.verifiedAt")} at={auth.verifiedAt} />
+                  ) : (
+                    t("agentPage.notVerified")
+                  )}
                 </span>
               )}
-              <button type="button" className="btn btn-ghost ml-auto" disabled={refreshing} onClick={refresh}>
-                <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? t("agentPage.refreshing") : t("agentPage.refresh")}
+              <button type="button" className="btn btn-ghost ml-auto" disabled={checking} onClick={check}>
+                <RefreshCw className={`size-4 ${checking ? "animate-spin" : ""}`} />
+                {checking ? t("agentPage.checking") : t("agentPage.check")}
               </button>
             </div>
+
+            {auth.state === "expired" && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-800 dark:text-red-300"
+              >
+                <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="font-semibold">{t("agentPage.expiredTitle")}</span>
+                  <span>{t("agentPage.expiredBody")}</span>
+                  {auth.at && auth.source !== "openclaw" && (
+                    <span className="text-xs">
+                      <WithWhen
+                        text={t(auth.source === "run" ? "agentPage.expiredSeenRun" : "agentPage.expiredSeenCheck")}
+                        at={auth.at}
+                      />
+                    </span>
+                  )}
+                  {auth.error && <code className="font-mono text-xs break-all">{auth.error}</code>}
+                </div>
+              </div>
+            )}
+
+            {checkError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{t("agentPage.checkFailed", { error: checkError })}</p>
+            )}
 
             <div className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold">{t("agentPage.howTo")}</h3>

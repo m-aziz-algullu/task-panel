@@ -179,6 +179,8 @@ openclaw models set anthropic/claude-sonnet-5-5    # the agent runs on Sonnet 5.
 
 Each person signs in with their own account, and the sign-in always completes in Anthropic's flow; Task Panel never sees or stores Claude credentials. Subscription limits assume ordinary individual use; see Anthropic's [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) page. For heavy, always-on use, set `ANTHROPIC_API_KEY` instead.
 
+**Is the sign-in still valid?** OpenClaw's config only says a sign-in was set up; it can't tell whether Claude Code's OAuth session behind it can still be refreshed (it can't after a long pause, a password change or a sign-out). So the **Agent** page proves it with one tiny real message (**Check sign-in**, also run by itself when you open the page and nothing has proven the sign-in in the last 12 hours) and shows when it last worked. A task run that fails to authenticate marks the sign-in **expired** right away, says so in the task's comment, and the page shows what to do: open the agent shell and run `claude auth login` again, then press **Check sign-in**. The next run or check that gets an answer clears it.
+
 ### Environment variables
 
 | Variable | Required | Description |
@@ -212,7 +214,7 @@ src/app/api/backup/            Backup download and restore
 src/app/api/push/              Push subscription, VAPID public key, test notification
 src/app/manifest.ts            Web app manifest (Home Screen install, needed for push on iOS)
 public/sw.js                   Service worker: shows push notifications, opens the task on click
-src/app/api/agent/             Claude sign-in status, run options, Control UI session
+src/app/api/agent/             Claude sign-in status and check, run options, Control UI session
 docker/                        Container supervisor, bundled OpenClaw setup, Control UI proxy
 scripts/agent-dev.mjs          OpenClaw Gateway for development
 scripts/screenshots.mjs        Re-takes the README screenshots from demo data

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getDb } from "../db";
+import { readClaudeHealth } from "./claude-health";
 import { gatewayRequest, gatewayStatus } from "../openclaw/client";
 import { claudeAuthFrom, claudeCliModels, type AgentDefaults, type AuthStatus, type ClaudeStatus } from "./claude-auth";
 
@@ -16,7 +18,7 @@ export async function agentDefaults(): Promise<AgentDefaults | null> {
 export async function getClaudeStatus({ refresh = false } = {}): Promise<ClaudeStatus> {
   const gateway = gatewayStatus();
   if (gateway.state === "disabled") return { gateway, cliFound: null, auth: { state: "unknown" } };
-  const [auth, models, defaults] = await Promise.all([
+  const [auth, models, defaults, health] = await Promise.all([
     gatewayRequest<AuthStatus>("models.authStatus", refresh ? { refresh: true } : {}, { timeoutMs: 30_000 }).catch(
       () => null,
     ),
@@ -24,6 +26,7 @@ export async function getClaudeStatus({ refresh = false } = {}): Promise<ClaudeS
       () => null,
     ),
     agentDefaults(),
+    getDb().then(readClaudeHealth),
   ]);
   // Before it's connected the CLI shows up as its own provider; connecting moves
   // those models over to Anthropic with the CLI runtime.
@@ -31,6 +34,6 @@ export async function getClaudeStatus({ refresh = false } = {}): Promise<ClaudeS
   return {
     gateway: gatewayStatus(),
     cliFound: cliListed || claudeCliModels(defaults).length > 0 ? true : cliListed,
-    auth: claudeAuthFrom(auth, defaults),
+    auth: claudeAuthFrom(auth, defaults, health),
   };
 }

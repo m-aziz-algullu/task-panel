@@ -5,7 +5,9 @@ import { getDb, schema, type Db } from "../db";
 import { listComments, loadTask } from "../data";
 import { GatewayUnavailableError, gatewayRequest } from "../openclaw/client";
 import { gatewayConnection } from "../openclaw/connection";
-import type { LimitMode, RunStatus, Task } from "../types";
+import type { LimitMode, RunStatus, Status, Task } from "../types";
+import { isClaudeAuthError } from "./claude-auth";
+import { noteRunAnswered, noteRunFailure } from "./claude-health";
 import { continuesAfterRun, continuesSession, followUpInput, runTokens, type SessionContext } from "./continuation";
 import { buildFollowUpPrompt, buildRunPrompt, parseRunReport } from "./prompt";
 import { errorText, turnReply } from "./reply";
@@ -80,12 +82,29 @@ function finalReply(run: RunRow, result: unknown): Promise<string | null> {
   return turnReply({ runId: run.openclawRunId, sessionKey: run.sessionKey, agentId: run.agentId, result });
 }
 
+/**
+ * A run that ended with an error. When Claude Code refused to authenticate, the
+ * comment says to sign in again instead of showing a bare error, and the agent
+ * page shows the sign-in as expired (`noteRunFailure`).
+ */
 function failure(reason: string) {
+  const key = isClaudeAuthError(reason) ? "agentRun.systemClaudeSignIn" : "agentRun.systemFailed";
   return {
     status: "failed" as const,
     error: reason,
-    comment: { author: "system" as const, body: systemCommentBody("agentRun.systemFailed", { error: reason }) },
+    comment: { author: "system" as const, body: systemCommentBody(key, { error: reason }) },
   };
+}
+
+/** OpenClaw's notice for a turn that failed before the model replied. */
+function isFailedTurnNotice(reply: string | null): boolean {
+  return !!reply && /^\s*your request couldn[’']t be completed\b/i.test(reply);
+}
+
+/** Ends the run as failed and records what the error says about the Claude sign-in. */
+async function failRun(db: Db, run: RunRow, reason: string, extra: { tokensUsed?: number; moveTo?: Status } = {}) {
+  await noteRunFailure(db, reason);
+  await finalizeRun(db, run, { ...failure(reason), ...extra });
 }
 
 export class AgentWorker {
@@ -202,11 +221,11 @@ export class AgentWorker {
         await sleep(TICK_MS);
         return;
       }
-      await finalizeRun(db, current, failure(errorText(error)));
+      await failRun(db, current, errorText(error));
       return;
     }
     if (!started.runId || started.runError) {
-      await finalizeRun(db, current, failure(started.runError?.message ?? "the run did not start"));
+      await failRun(db, current, started.runError?.message ?? "the run did not start");
       return;
     }
     if (!(await markRunStarted(db, current, started.runId))) {
@@ -365,7 +384,7 @@ export class AgentWorker {
           await sleep(TICK_MS);
           continue;
         }
-        await finalizeRun(db, run, { ...failure(errorText(error)), tokensUsed, moveTo: settings.statusOnBlocked });
+        await failRun(db, run, errorText(error), { tokensUsed, moveTo: settings.statusOnBlocked });
         return;
       }
 
@@ -383,8 +402,7 @@ export class AgentWorker {
         return;
       }
       if (waited === "error" || waited === "failed") {
-        await finalizeRun(db, run, {
-          ...failure(errorText(result.error ?? result.message)),
+        await failRun(db, run, errorText(result.error ?? result.message), {
           tokensUsed,
           moveTo: settings.statusOnBlocked,
         });
@@ -393,7 +411,15 @@ export class AgentWorker {
       // The turn is over: the agent's final message is its report. Without one the
       // app says so, so every run leaves a comment behind.
       if ((await runStatus(db, run.id)) !== "running") return;
-      const report = parseRunReport(await finalReply(run, result));
+      const reply = await finalReply(run, result);
+      // OpenClaw can end a turn Claude never took with its "Your request couldn't be
+      // completed: …" notice as the final message: a failed run, not a report.
+      if (isFailedTurnNotice(reply) && isClaudeAuthError(reply)) {
+        await failRun(db, run, reply!, { tokensUsed, moveTo: settings.statusOnBlocked });
+        return;
+      }
+      if (reply) await noteRunAnswered(db);
+      const report = parseRunReport(reply);
       await finalizeRun(
         db,
         run,
