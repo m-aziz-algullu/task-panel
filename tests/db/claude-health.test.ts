@@ -84,11 +84,11 @@ describe("checkClaude", () => {
     expect((await checkClaude(db)).outcome).toBe("auth");
   });
 
-  it("reports other failures without touching the recorded state", async () => {
+  it("records other failures too, so an earlier success doesn't keep showing", async () => {
     await recordClaudeHealth(db, { ok: true, source: "run" });
     gateway.handlers["sessions.create"] = () => ({ runError: { message: "rate limit reached" } });
     expect(await checkClaude(db)).toEqual({ outcome: "error", error: "rate limit reached" });
-    expect(await readClaudeHealth(db)).toMatchObject({ ok: true, source: "run" });
+    expect(await readClaudeHealth(db)).toMatchObject({ ok: false, source: "check", error: "rate limit reached" });
   });
 
   it("aborts its turn when the Gateway call fails midway", async () => {
