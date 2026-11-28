@@ -186,6 +186,16 @@ describe("claudeAuthFrom", () => {
     });
   });
 
+  it("doesn't keep showing a sign-in as working when a check failed for another reason", () => {
+    const health: ClaudeHealth = { ok: false, at: "2026-11-28T10:00:00.000Z", source: "check", error: "boom" };
+    expect(claudeAuthFrom({ providers: [] }, cliDefaults, health)).toEqual({
+      state: "failing",
+      source: "check",
+      at: "2026-11-28T10:00:00.000Z",
+      error: "boom",
+    });
+  });
+
   it("says when a real turn last proved the sign-in", () => {
     const health: ClaudeHealth = { ok: true, at: "2026-11-28T10:00:00.000Z", source: "check", error: null };
     expect(claudeAuthFrom({ providers: [] }, cliDefaults, health)).toEqual({

@@ -16,6 +16,8 @@ export function claudeAuthLabel(auth: ClaudeAuth): MessageKey {
       return "agentPage.claudeConnected";
     case "expired":
       return "agentPage.claudeExpired";
+    case "failing":
+      return "agentPage.claudeFailing";
     case "missing":
       return "agentPage.claudeMissing";
     default:
@@ -26,6 +28,7 @@ export function claudeAuthLabel(auth: ClaudeAuth): MessageKey {
 const AUTH_CLASS: Record<ClaudeAuth["state"], string> = {
   connected: "bg-green-500/15 text-green-700 dark:text-green-400",
   expired: "bg-red-500/15 text-red-700 dark:text-red-400",
+  failing: "bg-red-500/15 text-red-700 dark:text-red-400",
   missing: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   unknown: "bg-surface-2 text-muted",
 };
@@ -231,8 +234,14 @@ export function AgentPage({
             <div className="flex flex-wrap items-center gap-3">
               <KeyRound className="size-4 text-accent" />
               <h2 className="text-base font-semibold">{t("agentPage.claudeTitle")}</h2>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${AUTH_CLASS[auth.state]}`}>
-                {t(claudeAuthLabel(auth))}
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                auth.state === "connected" && !auth.verifiedAt && !checking
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                  : AUTH_CLASS[auth.state]
+              }`}>
+                {auth.state === "connected" && !auth.verifiedAt
+                  ? t(checking ? "agentPage.checking" : "agentPage.claudeUnverified")
+                  : t(claudeAuthLabel(auth))}
               </span>
               {auth.state === "connected" && (
                 <span className="text-xs text-muted">
@@ -252,15 +261,17 @@ export function AgentPage({
               </button>
             </div>
 
-            {auth.state === "expired" && (
+            {(auth.state === "expired" || auth.state === "failing") && (
               <div
                 role="alert"
                 className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-800 dark:text-red-300"
               >
                 <CircleAlert className="mt-0.5 size-4 shrink-0" />
                 <div className="flex min-w-0 flex-col gap-1">
-                  <span className="font-semibold">{t("agentPage.expiredTitle")}</span>
-                  <span>{t("agentPage.expiredBody")}</span>
+                  <span className="font-semibold">
+                    {t(auth.state === "expired" ? "agentPage.expiredTitle" : "agentPage.failingTitle")}
+                  </span>
+                  <span>{t(auth.state === "expired" ? "agentPage.expiredBody" : "agentPage.failingBody")}</span>
                   {auth.at && auth.source !== "openclaw" && (
                     <span className="text-xs">
                       <WithWhen

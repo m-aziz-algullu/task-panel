@@ -15,6 +15,7 @@ const KEY = "agent.claudeHealth";
 /** The check's own turn limit; a working sign-in answers in seconds. */
 const CHECK_TIMEOUT_MS = 90_000;
 const WAIT_SLICE_MS = 10_000;
+const GATEWAY_DOWN = "OpenClaw is not reachable";
 const CHECK_PROMPT = "This is an automated connection check. Reply with the single word OK and nothing else.";
 
 export async function readClaudeHealth(db: Db): Promise<ClaudeHealth | null> {
@@ -98,11 +99,13 @@ export function checkClaude(db: Db): Promise<ClaudeCheckResult> {
 
 async function runCheck(db: Db): Promise<ClaudeCheckResult> {
   const result = await probe(db);
-  if (result.outcome !== "error") {
+  // Whatever the check saw is what the page shows, so a failed check never leaves
+  // an earlier "working" standing. Only an unreachable Gateway says nothing.
+  if (result.outcome !== "error" || result.error !== GATEWAY_DOWN) {
     await recordClaudeHealth(db, {
       ok: result.outcome === "ok",
       source: "check",
-      error: result.outcome === "auth" ? result.error : null,
+      error: result.outcome === "ok" ? null : result.error,
     });
   }
   return result;
@@ -157,7 +160,7 @@ async function probe(db: Db): Promise<ClaudeCheckResult> {
     }
     return { outcome: "error", error: "the check timed out" };
   } catch (error) {
-    if (error instanceof GatewayUnavailableError) return { outcome: "error", error: "OpenClaw is not reachable" };
+    if (error instanceof GatewayUnavailableError) return { outcome: "error", error: GATEWAY_DOWN };
     return classify(errorText(error));
   } finally {
     // The check leaves nothing behind in OpenClaw: no running turn, no session.

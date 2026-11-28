@@ -34,6 +34,13 @@ export type ClaudeAuth =
       at: string | null;
       error: string | null;
     }
+  | {
+      /** A real turn failed for another reason (not a sign-in error): Claude can't be relied on yet. */
+      state: "failing";
+      source: "run" | "check";
+      at: string;
+      error: string | null;
+    }
   | { state: "missing" | "unknown" };
 
 export type ClaudeStatus = {
@@ -100,6 +107,7 @@ export function needsVerification(auth: ClaudeAuth, now: number, maxAgeMs = CLAU
   if (auth.state === "connected") {
     return !auth.verifiedAt || now - new Date(auth.verifiedAt).getTime() > maxAgeMs;
   }
+  if (auth.state === "failing") return now - new Date(auth.at).getTime() > CLAUDE_RECHECK_FAILED_MS;
   if (auth.state === "expired" && auth.source !== "openclaw") {
     return !auth.at || now - new Date(auth.at).getTime() > CLAUDE_RECHECK_FAILED_MS;
   }
@@ -120,7 +128,11 @@ export function claudeAuthFrom(
 ): ClaudeAuth {
   const configured = configuredAuth(status, defaults);
   if (!health || (configured.state !== "connected" && configured.state !== "expired")) return configured;
-  if (!health.ok) return { state: "expired", source: health.source, at: health.at, error: health.error };
+  if (!health.ok) {
+    return isClaudeAuthError(health.error)
+      ? { state: "expired", source: health.source, at: health.at, error: health.error }
+      : { state: "failing", source: health.source, at: health.at, error: health.error };
+  }
   if (configured.state === "connected") return { ...configured, verifiedAt: health.at };
   return configured;
 }
