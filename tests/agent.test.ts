@@ -313,8 +313,8 @@ describe("buildFollowUpPrompt", () => {
     expect(buildRunPrompt(base)).toContain("the user's latest ones are instructions for this run");
   });
 
-  it("points the agent at its memory", () => {
-    expect(buildRunPrompt(base)).toContain("USER.md");
+  it("doesn't send the agent to re-read workspace files OpenClaw already puts in its prompt", () => {
+    expect(buildRunPrompt(base)).not.toMatch(/USER\.md|MEMORY\.md/);
   });
 });
 

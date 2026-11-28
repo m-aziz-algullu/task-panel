@@ -188,7 +188,7 @@ const en = {
       "OpenClaw's interface isn't ready yet. Right after a deploy the Gateway waits for the previous container to stop before it starts, which can take a few minutes.",
     retry: "Try again",
     controlUiHint:
-      "OpenClaw's own Control UI, in a new tab: its settings, sessions, agents and files. Task Panel resets a few keys on every restart, so changes to these won't stick there: gateway.port, gateway.bind, gateway.auth.mode, gateway.controlUi.basePath, tools.allow, skills.allowBundled, the skills it turns off, the context limit of Anthropic models and the browser settings.",
+      "OpenClaw's own Control UI, in a new tab: its settings, sessions, agents and files. Task Panel resets a few keys on every restart, so changes to these won't stick there: gateway.port, gateway.bind, gateway.auth.mode, gateway.controlUi.basePath, tools.allow, skills.allowBundled, the skills it turns off, the context limit of Anthropic models, the heartbeat, dreaming and utility model (all off), the workspace file limits and the browser settings.",
     ephemeral: "/data isn't a mounted volume: the agent's memory, settings and Claude sign-in will be lost on the next deploy.",
     claudeTitle: "Claude sign-in",
     claudeConnected: "Signed in",

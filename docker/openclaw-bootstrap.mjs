@@ -70,6 +70,36 @@ const PLUGIN_SKILLS_OFF = ["browser-automation", "canvas"];
 
 export const AGENT_CONTEXT_TOKENS = 150_000;
 
+/**
+ * Model calls OpenClaw makes on its own, with nobody asking. Task Panel's agent
+ * only works when a task hands it work, so all of these go. With a Claude
+ * subscription each one is a full Claude Code turn on the user's quota:
+ * - the heartbeat, an hourly turn in the agent's main session (OpenClaw puts it
+ *   at about 100k tokens a tick); its history piles up, so even a "hello" in
+ *   that session re-reads it all. `0m` stops the schedule.
+ * - dreaming, memory-core's nightly memory consolidation.
+ * - the utility model: session titles, rolling activity recaps and progress
+ *   narration, a separate call each. An empty value turns that route off.
+ */
+const BACKGROUND_OFF = [
+  { path: "agents.defaults.heartbeat.every", value: "0m" },
+  { path: "plugins.entries.memory-core.config.dreaming.enabled", value: false },
+  { path: "agents.defaults.utilityModel", value: "" },
+];
+
+/**
+ * Workspace files (AGENTS.md, SOUL.md, USER.md, MEMORY.md, …) go into the system
+ * prompt of every model call; OpenClaw allows 20k characters a file and 60k in
+ * all. MEMORY.md grows as the agent works, so it is held to a few thousand tokens.
+ */
+export const BOOTSTRAP_MAX_CHARS = 8_000;
+export const BOOTSTRAP_TOTAL_MAX_CHARS = 20_000;
+
+const BOOTSTRAP_LIMITS = [
+  { path: "agents.defaults.bootstrapMaxChars", value: BOOTSTRAP_MAX_CHARS },
+  { path: "agents.defaults.bootstrapTotalMaxChars", value: BOOTSTRAP_TOTAL_MAX_CHARS },
+];
+
 /** OpenClaw fills in the rest of each entry from its catalog. */
 const CAPPED_MODELS = [
   { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
@@ -105,6 +135,8 @@ export function managedConfig({ port = GATEWAY_PORT, container = false, browserS
       path: "models.providers.anthropic.models",
       value: CAPPED_MODELS.map((model) => ({ ...model, contextTokens: AGENT_CONTEXT_TOKENS })),
     },
+    ...BACKGROUND_OFF,
+    ...BOOTSTRAP_LIMITS,
     ...(container
       ? [
           // Where control-ui-proxy.mjs serves the Control UI on Task Panel's own port.
